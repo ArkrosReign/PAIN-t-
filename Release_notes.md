@@ -35,7 +35,8 @@ Update #3 09/10/26, 2:06 PM CST
 - Finished implementing both Save and Save As
 
 Some issues ive taken note of: (only 1, the issues ive noted before were fixed)
-- Save doesn't do anything without no image loaded 
+- Save doesn't do anything without no image loaded
+- When loading some images parts of an image can be cropped out like you see with the cat brick or one where it only decided to show another cats ear only 😭
 
 
 Note: For reference I used Oracle documentation like a few was SwingFXUtils, Writableimage, and ImageView to name a few
