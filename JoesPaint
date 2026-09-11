@@ -1,1 +1,152 @@
+package com.mycompany.mavenproject1;
 
+//for general setup for the application
+import javafx.application.Application;
+import javafx.stage.Stage;
+import javafx.stage.FileChooser;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuItem;
+import javafx.scene.Scene;
+import javafx.scene.layout.VBox;
+//for image display
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+//for saving
+import javafx.scene.SnapshotParameters;
+import javafx.scene.image.WritableImage;
+//now for more saving galore
+import javafx.embed.swing.SwingFXUtils;
+import java.awt.image.BufferedImage;
+//pls make all these imports STOP, anyways to help saveas
+import javax.imageio.ImageIO;
+import java.io.IOException; //for the catch in line 99
+import java.io.File;
+
+public class JoesPaint extends Application {
+    
+    private File currentFile;
+
+    @Override
+    public void start(Stage stage) {
+        //basically make the menu then file
+        MenuBar menuBar = new MenuBar();
+        Menu fileMenu = new Menu("File");
+
+        //menu options
+        MenuItem openItem = new MenuItem("Open");
+        MenuItem saveItem = new MenuItem("Save");
+        MenuItem saveAsItem = new MenuItem("Save As");
+        MenuItem exitItem = new MenuItem("Exit");
+
+        //jus view image
+        ImageView imageView = new ImageView();
+
+        //for opening image
+        openItem.setOnAction(e -> {
+
+            FileChooser fileChooser = new FileChooser();
+
+            fileChooser.setTitle("Open Image");
+
+            fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter(
+                    "Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif"
+                )
+            );
+
+            File selectedFile = fileChooser.showOpenDialog(stage);
+
+            if (selectedFile != null) {
+                Image image = new Image(selectedFile.toURI().toString());
+                imageView.setImage(image);
+                currentFile = selectedFile;
+            }
+        });
+
+        //save as function
+        saveAsItem.setOnAction(e -> {
+
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Save Image");
+            fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter(
+                    "PNG Images", "*.png"
+                )
+            );
+
+            File selectedFile = fileChooser.showSaveDialog(stage);
+            if (selectedFile != null) {
+                WritableImage snapshot = imageView.snapshot(
+                new SnapshotParameters(),
+                null
+                );
+                BufferedImage bufferedImage = SwingFXUtils.fromFXImage(
+                snapshot,
+                null
+                );
+                try {
+                    ImageIO.write(
+                    bufferedImage,
+                    "png",
+                    selectedFile
+            );
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                        
+                }
+        });
+    //save function
+    saveItem.setOnAction(e -> {
+        if (currentFile != null) {
+            WritableImage snapshot = imageView.snapshot(
+                new SnapshotParameters(),
+                null
+        );
+            BufferedImage bufferedImage = SwingFXUtils.fromFXImage(
+                snapshot,
+                null
+        );
+            try {
+                ImageIO.write(
+                    bufferedImage,
+                    "png",
+                currentFile
+        );
+            } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
+
+});
+        //program! LETS LEAVE!
+        exitItem.setOnAction(e -> {
+            stage.close();
+        });
+
+        //basically all the options inside file
+        fileMenu.getItems().addAll(
+            openItem,
+            saveItem,
+            saveAsItem,
+            exitItem
+        );
+        
+        menuBar.getMenus().add(fileMenu);
+
+        // This acts as the scene setting up the content inside the window
+        VBox root = new VBox();
+        root.getChildren().addAll(menuBar, imageView);
+
+        Scene scene = new Scene(root, 800, 600);
+
+        stage.setTitle("Joes' Pain(t)");
+        stage.setScene(scene);
+        stage.show();
+    }
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
