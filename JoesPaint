@@ -22,6 +22,7 @@ import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 import java.io.IOException; //for the catch in line 99
 import java.io.File;
+import javafx.scene.control.Alert; //used oracle javafx alert to resolve "save" not working 
 
 public class JoesPaint extends Application {
     
@@ -91,11 +92,19 @@ public class JoesPaint extends Application {
                     "png",
                     selectedFile
             );
-                    } catch (IOException ex) {
-                        ex.printStackTrace();
-                    }
+            Alert alert = new Alert(Alert.AlertType.INFORMATION); //the fix for save not working, so when you save a popup should come up saying "x file has been saved"
+            alert.setTitle("Save");
+            alert.setHeaderText(null);
+            alert.setContentText(
+                "File saved: " + currentFile.getName()
+        );
+        alert.showAndWait();
+            } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+    }
                         
-                }
+    }
         });
     //save function
     saveItem.setOnAction(e -> {
