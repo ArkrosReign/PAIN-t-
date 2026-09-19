@@ -41,6 +41,10 @@ Some issues ive taken note of: (only 1, the issues ive noted before were fixed)
 
 Note: For reference I used Oracle documentation like a few was SwingFXUtils, Writableimage, and ImageView to name a few to help me with this assignment
 
-Update #4 9/13/26, 9:38 PM
+Update #4 9/13/26, 9:38 PM CST
 - Added a feature where when you save, you will receive a popup saying the file has been saved
-- Also said popup displays file name for confirmation 
+- Also said popup displays file name for confirmation
+
+Update #5 9/18/26, 11:03 PM EST
+- added a help button in menubar which includes the help and about button
+- added a colorpicker
