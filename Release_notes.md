@@ -48,3 +48,7 @@ Update #4 9/13/26, 9:38 PM CST
 Update #5 9/18/26, 11:03 PM EST
 - added a help button in menubar which includes the help and about button
 - added a colorpicker
+
+Update #6 9/20/26, 11:29 AM EST (airport coding time)
+- added smartsave where the app will warn the user if they try to exit without saving
+- added the ability to draw a line 
