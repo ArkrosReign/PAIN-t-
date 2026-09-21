@@ -1,6 +1,6 @@
 package com.mycompany.mavenproject1;
 
-//for general setup for the application
+// for general setup for the application
 import javafx.application.Application;
 import javafx.stage.Stage;
 import javafx.stage.FileChooser;
@@ -9,41 +9,193 @@ import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.Scene;
 import javafx.scene.layout.VBox;
-//for image display
+import javafx.scene.layout.StackPane;
+import javafx.scene.control.ScrollPane;
+
+// for image display
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-//for saving
+
+// for saving
 import javafx.scene.SnapshotParameters;
 import javafx.scene.image.WritableImage;
-//now for more saving galore
+
+// now for more saving galore
 import javafx.embed.swing.SwingFXUtils;
 import java.awt.image.BufferedImage;
-//pls make all these imports STOP, anyways to help saveas
+
+// pls make all these imports STOP, anyways to help saveas
 import javax.imageio.ImageIO;
-import java.io.IOException; //for the catch in line 99
+import java.io.IOException;
 import java.io.File;
-import javafx.scene.control.Alert; //used oracle javafx alert to resolve "save" not working 
+
+// alerts
+import javafx.scene.control.Alert;
+
+// color picker
+import javafx.scene.control.ColorPicker;
+import javafx.scene.paint.Color;
+
+// smart save
+import java.util.Optional;
+import javafx.scene.control.ButtonType;
+
+// drawing
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Slider;
 
 public class JoesPaint extends Application {
-    
+
+    private boolean unsavedChanges = false;
     private File currentFile;
+
+    double startX = 0;
+    double startY = 0;
 
     @Override
     public void start(Stage stage) {
-        //basically make the menu then file
+
+        // smart save :p
+        stage.setOnCloseRequest(e -> {
+
+            if (unsavedChanges) {
+
+                Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+                alert.setTitle("Unsaved Changes");
+                alert.setHeaderText("You have unsaved changes.");
+                alert.setContentText(
+                    "Are you sure you want to close without saving?"
+                );
+
+                Optional<ButtonType> result = alert.showAndWait();
+
+                if (result.isPresent() && result.get() == ButtonType.OK) {
+                    // Don't consume the event.
+                    // JavaFX will close the window normally.
+                } else {
+                    e.consume();
+                }
+            }
+        });
+
+        // basically make the menu then file
         MenuBar menuBar = new MenuBar();
         Menu fileMenu = new Menu("File");
 
-        //menu options
+        // menu options
         MenuItem openItem = new MenuItem("Open");
         MenuItem saveItem = new MenuItem("Save");
         MenuItem saveAsItem = new MenuItem("Save As");
+        MenuItem clearItem = new MenuItem("Clear");
         MenuItem exitItem = new MenuItem("Exit");
 
-        //jus view image
+        // help menu
+        Menu helpMenu = new Menu("Help");
+
+        MenuItem helpItem = new MenuItem("Help");
+        MenuItem aboutItem = new MenuItem("About");
+
+        helpMenu.getItems().addAll(helpItem, aboutItem);
+
+        // add both menus to the menu bar
+        menuBar.getMenus().addAll(fileMenu, helpMenu);
+
+        // for help
+        helpItem.setOnAction(e -> {
+
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Help");
+            alert.setHeaderText("Joes' Pain(t) Help");
+            alert.setContentText(
+                "Use File > Press Save to save changes.\n"
+                + "Use File > Press Save As to save a copy of the image."
+            );
+
+            alert.showAndWait();
+        });
+
+        // about button
+        aboutItem.setOnAction(e -> {
+
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("About");
+            alert.setHeaderText("Joes' Pain(t)");
+            alert.setContentText(
+                "Joes' Pain(t)\n"
+                + "Version 1.0\n\n"
+                + "A editing application powered by JavaFX."
+            );
+
+            alert.showAndWait();
+        });
+
+        // jus view image
         ImageView imageView = new ImageView();
 
-        //for opening image
+        // fix for lines not drawing on a image, SPRINT #2
+        imageView.setMouseTransparent(true);
+
+        // drawing canvas
+        Canvas canvas = new Canvas(800, 500);
+        GraphicsContext gc = canvas.getGraphicsContext2D();
+
+        canvas.setMouseTransparent(false);
+
+        // for the line width slider
+        Slider lineWidth = new Slider(1, 20, 5);
+
+        // setup drawing area
+        StackPane drawingArea = new StackPane();
+
+        drawingArea.getChildren().addAll(
+            imageView,
+            canvas
+        );
+
+        canvas.toFront();
+
+        // large image support
+        ScrollPane scrollPane = new ScrollPane();
+
+        scrollPane.setContent(drawingArea);
+        scrollPane.setPannable(true);
+
+        // remember where the mouse starts
+        canvas.setOnMousePressed(e -> {
+            startX = e.getX();
+            startY = e.getY();
+        });
+
+        // drawn line when I release mouse
+        canvas.setOnMouseReleased(e -> {
+
+            gc.setLineWidth(lineWidth.getValue());
+
+            gc.strokeLine(
+                startX,
+                startY,
+                e.getX(),
+                e.getY()
+            );
+
+            unsavedChanges = true;
+        });
+
+        // clear canvas
+        clearItem.setOnAction(e -> {
+
+            gc.clearRect(
+                0,
+                0,
+                canvas.getWidth(),
+                canvas.getHeight()
+            );
+
+            unsavedChanges = true;
+        });
+
+        // for opening image
         openItem.setOnAction(e -> {
 
             FileChooser fileChooser = new FileChooser();
@@ -52,109 +204,205 @@ public class JoesPaint extends Application {
 
             fileChooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter(
-                    "Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif"
+                    "PNG Images",
+                    "*.png"
+                ),
+                new FileChooser.ExtensionFilter(
+                    "JPG Images",
+                    "*.jpg",
+                    "*.jpeg"
+                ),
+                new FileChooser.ExtensionFilter(
+                    "BMP Images",
+                    "*.bmp"
                 )
             );
 
             File selectedFile = fileChooser.showOpenDialog(stage);
 
             if (selectedFile != null) {
-                Image image = new Image(selectedFile.toURI().toString());
+
+                Image image = new Image(
+                    selectedFile.toURI().toString()
+                );
+
                 imageView.setImage(image);
+
+                // resize canvas to match opened image
+                canvas.setWidth(image.getWidth());
+                canvas.setHeight(image.getHeight());
+
                 currentFile = selectedFile;
+                unsavedChanges = false;
             }
         });
 
-        //save as function
+        // stuff for save as
         saveAsItem.setOnAction(e -> {
 
             FileChooser fileChooser = new FileChooser();
+
             fileChooser.setTitle("Save Image");
-            fileChooser.getExtensionFilters().add(
+
+            fileChooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter(
-                    "PNG Images", "*.png"
+                    "PNG Images",
+                    "*.png"
+                ),
+                new FileChooser.ExtensionFilter(
+                    "JPG Images",
+                    "*.jpg",
+                    "*.jpeg"
+                ),
+                new FileChooser.ExtensionFilter(
+                    "BMP Images",
+                    "*.bmp"
                 )
             );
 
             File selectedFile = fileChooser.showSaveDialog(stage);
-            if (selectedFile != null) {
-                WritableImage snapshot = imageView.snapshot(
-                new SnapshotParameters(),
-                null
-                );
-                BufferedImage bufferedImage = SwingFXUtils.fromFXImage(
-                snapshot,
-                null
-                );
-                try {
-                    ImageIO.write(
-                    bufferedImage,
-                    "png",
-                    selectedFile
-            );
-            Alert alert = new Alert(Alert.AlertType.INFORMATION); //the fix for save not working, so when you save a popup should come up saying "x file has been saved"
-            alert.setTitle("Save");
-            alert.setHeaderText(null);
-            alert.setContentText(
-                "File saved: " + currentFile.getName()
-        );
-        alert.showAndWait();
-            } catch (IOException ex) {
-            ex.printStackTrace();
-        }
-    }
-                        
-    }
-        });
-    //save function
-    saveItem.setOnAction(e -> {
-        if (currentFile != null) {
-            WritableImage snapshot = imageView.snapshot(
-                new SnapshotParameters(),
-                null
-        );
-            BufferedImage bufferedImage = SwingFXUtils.fromFXImage(
-                snapshot,
-                null
-        );
-            try {
-                ImageIO.write(
-                    bufferedImage,
-                    "png",
-                currentFile
-        );
-            } catch (IOException ex) {
-            ex.printStackTrace();
-        }
-    }
 
-});
-        //program! LETS LEAVE!
+            if (selectedFile != null) {
+
+                WritableImage snapshot = drawingArea.snapshot(
+                    new SnapshotParameters(),
+                    null
+                );
+
+                BufferedImage bufferedImage =
+                    SwingFXUtils.fromFXImage(
+                        snapshot,
+                        null
+                    );
+
+                String format = "png";
+
+                if (fileChooser.getSelectedExtensionFilter()
+                        .getDescription()
+                        .equals("JPG Images")) {
+
+                    format = "jpg";
+
+                } else if (
+                    fileChooser.getSelectedExtensionFilter()
+                        .getDescription()
+                        .equals("BMP Images")
+                ) {
+
+                    format = "bmp";
+                }
+
+                try {
+
+                    ImageIO.write(
+                        bufferedImage,
+                        format,
+                        selectedFile
+                    );
+
+                    // Save As becomes the new current file
+                    currentFile = selectedFile;
+
+                    unsavedChanges = false;
+
+                    Alert alert = new Alert(
+                        Alert.AlertType.INFORMATION
+                    );
+
+                    alert.setTitle("Save");
+                    alert.setHeaderText(null);
+                    alert.setContentText(
+                        "File saved: "
+                        + currentFile.getName()
+                    );
+
+                    alert.showAndWait();
+
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+
+        // save function
+        saveItem.setOnAction(e -> {
+
+            if (currentFile != null) {
+
+                WritableImage snapshot = drawingArea.snapshot(
+                    new SnapshotParameters(),
+                    null
+                );
+
+                BufferedImage bufferedImage =
+                    SwingFXUtils.fromFXImage(
+                        snapshot,
+                        null
+                    );
+
+                try {
+
+                    ImageIO.write(
+                        bufferedImage,
+                        "png",
+                        currentFile
+                    );
+
+                    unsavedChanges = false;
+
+                    Alert alert = new Alert(
+                        Alert.AlertType.INFORMATION
+                    );
+
+                    alert.setTitle("Save");
+                    alert.setHeaderText(null);
+                    alert.setContentText(
+                        "File saved: "
+                        + currentFile.getName()
+                    );
+
+                    alert.showAndWait();
+
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
+
+        // program! LETS LEAVE!
         exitItem.setOnAction(e -> {
             stage.close();
         });
 
-        //basically all the options inside file
+        // basically all the options inside file
         fileMenu.getItems().addAll(
             openItem,
             saveItem,
             saveAsItem,
+            clearItem,
             exitItem
         );
-        
-        menuBar.getMenus().add(fileMenu);
+        //color picker
+        ColorPicker colorPicker = new ColorPicker();
 
-        // This acts as the scene setting up the content inside the window
+        //setup for outside the window
         VBox root = new VBox();
-        root.getChildren().addAll(menuBar, imageView);
-
-        Scene scene = new Scene(root, 800, 600);
+        root.getChildren().addAll(
+            menuBar,
+            colorPicker,
+            lineWidth,
+            scrollPane
+        );
+        Scene scene = new Scene(
+            root,
+            800,
+            600
+        );
 
         stage.setTitle("Joes' Pain(t)");
         stage.setScene(scene);
         stage.show();
     }
-
     public static void main(String[] args) {
         launch(args);
     }
