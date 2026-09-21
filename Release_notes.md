@@ -51,4 +51,13 @@ Update #5 9/18/26, 11:03 PM EST
 
 Update #6 9/20/26, 11:29 AM EST (airport coding time)
 - added smartsave where the app will warn the user if they try to exit without saving
-- added the ability to draw a line 
+- added the ability to draw a line
+
+Update #6 9/21/26, 10:23 AM CST 
+- Added the ability to draw lines on a image that is open
+- Now you can open a image and freely draw lines on, save it and open it again and it will remain there
+
+SPRINT #2 KNOWN ISSUES
+- When I open certain images it can block the color picker + scale (FIXED)
+- Drawing lines then opening the image will not show up while on a blank canvas i can (FIXED, had to rewrite the stackpane function cus it was extend only drawing lines on the bottom)
+- colorpicker gets blocked when opening a larger image
