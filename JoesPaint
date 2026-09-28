@@ -11,6 +11,8 @@ import javafx.scene.Scene;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Label;
+import javafx.scene.control.ComboBox;
 
 // for image display
 import javafx.scene.image.Image;
@@ -29,12 +31,13 @@ import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.io.File;
 
-// alerts
+// alert
 import javafx.scene.control.Alert;
 
 // color picker
 import javafx.scene.control.ColorPicker;
 import javafx.scene.paint.Color;
+import javafx.scene.image.PixelReader;
 
 // smart save
 import java.util.Optional;
@@ -45,6 +48,26 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Slider;
 
+// keyshortcut stuffs
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
+
+// tabs
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.Button;
+
+// layout
+import javafx.scene.layout.Priority;
+
+
+/**
+ * Main application class for Pain(t).
+ *
+ * Provides the user interface for opening, editing, drawing on,
+ * and saving images.
+ */
 public class JoesPaint extends Application {
 
     private boolean unsavedChanges = false;
@@ -53,11 +76,21 @@ public class JoesPaint extends Application {
     double startX = 0;
     double startY = 0;
 
+    /**
+     * starts the application and sets up the
+     * menus, drawing tools, image display, saving options,
+     * and tabbed workspace.
+     *
+     * @param stage the main window used by the application
+     */
     @Override
     public void start(Stage stage) {
 
-        // smart save :p
-        stage.setOnCloseRequest(e -> {
+        /**
+         * this checks for unsaved changes before closing the application
+         * and asks the user if they want to close without saving.
+         */
+        stage.setOnCloseRequest(e -> { // smart save :p
 
             if (unsavedChanges) {
 
@@ -71,8 +104,7 @@ public class JoesPaint extends Application {
                 Optional<ButtonType> result = alert.showAndWait();
 
                 if (result.isPresent() && result.get() == ButtonType.OK) {
-                    // Don't consume the event.
-                    // JavaFX will close the window normally.
+
                 } else {
                     e.consume();
                 }
@@ -90,6 +122,13 @@ public class JoesPaint extends Application {
         MenuItem clearItem = new MenuItem("Clear");
         MenuItem exitItem = new MenuItem("Exit");
 
+        saveItem.setAccelerator( //for key shortcut, aka save 
+            new KeyCodeCombination(
+                KeyCode.S,
+                KeyCombination.SHORTCUT_DOWN
+            )
+        );
+
         // help menu
         Menu helpMenu = new Menu("Help");
 
@@ -101,7 +140,9 @@ public class JoesPaint extends Application {
         // add both menus to the menu bar
         menuBar.getMenus().addAll(fileMenu, helpMenu);
 
-        // for help
+        /**
+         * Displays basic instructions for using the application.
+         */
         helpItem.setOnAction(e -> {
 
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
@@ -115,7 +156,10 @@ public class JoesPaint extends Application {
             alert.showAndWait();
         });
 
-        // about button
+        /**
+         * Displays information about Joes' Pain(t), including
+         * the application version and a small developer joke.
+         */
         aboutItem.setOnAction(e -> {
 
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
@@ -124,26 +168,72 @@ public class JoesPaint extends Application {
             alert.setContentText(
                 "Joes' Pain(t)\n"
                 + "Version 1.0\n\n"
-                + "A editing application powered by JavaFX."
+                + "A editing application powered by JavaFX. "
+                + "Also powered by a caffeine addict"
             );
-
             alert.showAndWait();
         });
 
-        // jus view image
+        /**
+         * Creates the ImageView used to display the currently opened image.
+         */
         ImageView imageView = new ImageView();
 
         // fix for lines not drawing on a image, SPRINT #2
         imageView.setMouseTransparent(true);
 
-        // drawing canvas
-        Canvas canvas = new Canvas(800, 500);
+        /**
+         * Creates the canvas used for drawing and connects it to
+         * the shape and drawing managers.
+         */
+        Canvas canvas = new Canvas(800, 500);         // drawing canvas
         GraphicsContext gc = canvas.getGraphicsContext2D();
+
+        ShapeManager shapeManager = new ShapeManager(gc);
+        DrawingManager drawingManager = new DrawingManager(gc);
 
         canvas.setMouseTransparent(false);
 
         // for the line width slider
         Slider lineWidth = new Slider(1, 20, 5);
+        Label lineWidthLabel = new Label("Line Width: 5 px");
+
+        // tool selector
+        ComboBox<String> toolSelector = new ComboBox<>();
+
+        toolSelector.getItems().addAll(
+            "Line",
+            "Rectangle",
+            "Pencil",
+            "Color Grabber",
+            "Square",
+            "Ellipse",
+            "Circle",
+            "Triangle"
+        );
+
+        toolSelector.setValue("Line");
+        toolSelector.setPrefWidth(120);
+
+        // line style selector
+        ComboBox<String> lineStyleSelector = new ComboBox<>();
+
+        lineStyleSelector.getItems().addAll(
+            "Solid",
+            "Dashed"
+        );
+
+        lineStyleSelector.setValue("Solid");
+        lineStyleSelector.setPrefWidth(120);
+
+        // color picker
+        ColorPicker colorPicker = new ColorPicker();
+
+        lineWidth.valueProperty().addListener((obs, oldValue, newValue) -> {
+            lineWidthLabel.setText(
+                "Line Width: " + newValue.intValue() + " px"
+            );
+        });
 
         // setup drawing area
         StackPane drawingArea = new StackPane();
@@ -161,28 +251,142 @@ public class JoesPaint extends Application {
         scrollPane.setContent(drawingArea);
         scrollPane.setPannable(true);
 
-        // remember where the mouse starts
+        /**
+         * Records the starting mouse position for drawing tools.
+         * If the Color Grabber is selected, the clicked pixel color
+         * is also retrieved and placed into the color picker.
+         */
         canvas.setOnMousePressed(e -> {
+
             startX = e.getX();
             startY = e.getY();
+
+            if (toolSelector.getValue().equals("Color Grabber")) {
+
+                WritableImage snapshot = canvas.snapshot(
+                    new SnapshotParameters(),
+                    null
+                );
+
+                PixelReader pixelReader = snapshot.getPixelReader();
+
+                Color grabbedColor = pixelReader.getColor(
+                    (int) e.getX(),
+                    (int) e.getY()
+                );
+
+                colorPicker.setValue(grabbedColor);
+            }
         });
 
-        // drawn line when I release mouse
+        /**
+         * Draws a continuous line while the user drags the mouse
+         * when the Pencil tool is selected.
+         */
+        canvas.setOnMouseDragged(e -> {
+
+            if (toolSelector.getValue().equals("Pencil")) {
+
+                gc.setStroke(colorPicker.getValue());
+
+                drawingManager.drawPencil(
+                    startX,
+                    startY,
+                    e.getX(),
+                    e.getY()
+                );
+
+                startX = e.getX();
+                startY = e.getY();
+
+                unsavedChanges = true;
+            }
+        });
+
+        /**
+         * Draws the currently selected tool when the mouse is released.
+         * This also applies the selected color, line width, and line style.
+         */
         canvas.setOnMouseReleased(e -> {
+
+            gc.setStroke(colorPicker.getValue());
 
             gc.setLineWidth(lineWidth.getValue());
 
-            gc.strokeLine(
-                startX,
-                startY,
-                e.getX(),
-                e.getY()
-            );
+            if (lineStyleSelector.getValue().equals("Dashed")) {
+                gc.setLineDashes(30, 15);
+            } else {
+                gc.setLineDashes(null);
+            }
+
+            String selectedTool = toolSelector.getValue();
+
+            if (selectedTool.equals("Line")) {
+
+                gc.strokeLine(
+                    startX,
+                    startY,
+                    e.getX(),
+                    e.getY()
+                );
+
+            } else if (selectedTool.equals("Rectangle")) {
+
+                shapeManager.drawRectangle(
+                    startX,
+                    startY,
+                    e.getX() - startX,
+                    e.getY() - startY
+                );
+
+            } else if (selectedTool.equals("Square")) {
+
+                shapeManager.drawSquare(
+                    startX,
+                    startY,
+                    Math.min(
+                        Math.abs(e.getX() - startX),
+                        Math.abs(e.getY() - startY)
+                    )
+                );
+
+            } else if (selectedTool.equals("Ellipse")) {
+
+                shapeManager.drawEllipse(
+                    startX,
+                    startY,
+                    e.getX() - startX,
+                    e.getY() - startY
+                );
+
+            } else if (selectedTool.equals("Circle")) {
+
+                shapeManager.drawCircle(
+                    startX,
+                    startY,
+                    Math.min(
+                        Math.abs(e.getX() - startX),
+                        Math.abs(e.getY() - startY)
+                    )
+                );
+
+            } else if (selectedTool.equals("Triangle")) {
+
+                shapeManager.drawTriangle(
+                    startX,
+                    startY,
+                    e.getX(),
+                    e.getY()
+                );
+            }
 
             unsavedChanges = true;
         });
 
-        // clear canvas
+        /**
+         * Clears the current canvas and marks the image as having
+         * unsaved changes.
+         */
         clearItem.setOnAction(e -> {
 
             gc.clearRect(
@@ -195,7 +399,10 @@ public class JoesPaint extends Application {
             unsavedChanges = true;
         });
 
-        // for opening image
+        /**
+         * Opens an image selected by the user and resizes the canvas
+         * to match the dimensions of the opened image.
+         */
         openItem.setOnAction(e -> {
 
             FileChooser fileChooser = new FileChooser();
@@ -237,8 +444,11 @@ public class JoesPaint extends Application {
             }
         });
 
-        // stuff for save as
-        saveAsItem.setOnAction(e -> {
+        /**
+         * Saves the current drawing as a new image file using the
+         * format selected by the user.
+         */
+        saveAsItem.setOnAction(e -> { //save as stuff
 
             FileChooser fileChooser = new FileChooser();
 
@@ -323,9 +533,11 @@ public class JoesPaint extends Application {
                 }
             }
         });
-
-        // save function
-        saveItem.setOnAction(e -> {
+        /**
+         * Saves the current drawing to the currently selected file.
+         * If no file has been selected yet, no save operation is performed.
+         */
+        saveItem.setOnAction(e -> {  // save function
 
             if (currentFile != null) {
 
@@ -370,6 +582,9 @@ public class JoesPaint extends Application {
         });
 
         // program! LETS LEAVE!
+        /**
+         * Closes the application window.
+         */
         exitItem.setOnAction(e -> {
             stage.close();
         });
@@ -382,27 +597,96 @@ public class JoesPaint extends Application {
             clearItem,
             exitItem
         );
-        //color picker
-        ColorPicker colorPicker = new ColorPicker();
 
-        //setup for outside the window
+        /**
+         * Creates the tabbed workspace used to hold multiple images.
+         */
+        TabPane tabPane = new TabPane();
+
+        // 
+        Tab firstTab = new Tab("Untitled");
+
+        firstTab.setContent(scrollPane);
+
+        tabPane.getTabs().add(firstTab);
+
+        /**
+         * Creates a button for adding additional image tabs.
+         */
+        Button addTabButton = new Button("+");
+
+        addTabButton.setOnAction(e -> {
+
+            Tab newTab = new Tab("Untitled");
+
+            ImageTab newImageTab = new ImageTab();
+
+            newTab.setContent(
+                newImageTab.getScrollPane()
+            );
+
+            tabPane.getTabs().add(newTab);
+
+            tabPane.getSelectionModel().select(newTab);
+        });
+
+        Label colorLabel = new Label("Color: #000000");
+
+        /**
+         * Updates the color label whenever the selected color changes.
+         * The color is displayed as a hexadecimal RGB value.
+         */
+        colorPicker.valueProperty().addListener(
+            (obs, oldColor, newColor) -> {
+
+                String hex = String.format(
+                    "#%02X%02X%02X",
+                    (int) (newColor.getRed() * 255),
+                    (int) (newColor.getGreen() * 255),
+                    (int) (newColor.getBlue() * 255)
+                );
+
+                colorLabel.setText("Color: " + hex);
+            }
+        );
+
+        // setup for outside the window
         VBox root = new VBox();
+
+        //layout stuff
+        VBox.setVgrow(
+            tabPane,
+            Priority.ALWAYS
+        );
+
         root.getChildren().addAll(
             menuBar,
             colorPicker,
+            colorLabel,
+            toolSelector,
+            lineStyleSelector,
+            lineWidthLabel,
             lineWidth,
-            scrollPane
+            addTabButton,
+            tabPane
         );
+
         Scene scene = new Scene(
             root,
-            800,
-            600
+            1000,
+            750
         );
 
         stage.setTitle("Joes' Pain(t)");
         stage.setScene(scene);
         stage.show();
     }
+
+    /**
+     * Main entry point for the Joes' Pain(t) application.
+     *
+     * @param args command-line arguments passed to the application
+     */
     public static void main(String[] args) {
         launch(args);
     }
