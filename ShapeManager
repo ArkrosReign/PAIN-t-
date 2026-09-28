@@ -1,0 +1,116 @@
+package com.mycompany.mavenproject1;
+
+import javafx.scene.canvas.GraphicsContext;
+
+/**
+ * Manages the drawing of basic geometric shapes on a canvas.
+ *
+ * Uses a GraphicsContext to draw rectangles, squares, ellipses,
+ * circles, and triangles.
+ */
+public class ShapeManager {
+
+    private GraphicsContext gc;
+
+    /**
+     * Creates a ShapeManager using the provided GraphicsContext.
+     *
+     * @param gc the GraphicsContext used to draw the shapes
+     */
+    public ShapeManager(GraphicsContext gc) {
+        this.gc = gc;
+    }
+
+    /**
+     * Draws the outline of a rectangle.
+     *
+     * @param x the starting x-coordinate
+     * @param y the starting y-coordinate
+     * @param width the width of the rectangle
+     * @param height the height of the rectangle
+     */
+    public void drawRectangle(
+        double x,
+        double y,
+        double width,
+        double height
+    ) {
+        gc.strokeRect(x, y, width, height);
+    }
+
+    /**
+     * Draws the outline of a square.
+     *
+     * @param x the starting x-coordinate
+     * @param y the starting y-coordinate
+     * @param size the length of each side
+     */
+    public void drawSquare(
+        double x,
+        double y,
+        double size
+    ) {
+        gc.strokeRect(x, y, size, size);
+    }
+
+    /**
+     * Draws the outline of an ellipse.
+     *
+     * @param x the starting x-coordinate
+     * @param y the starting y-coordinate
+     * @param width the width of the ellipse
+     * @param height the height of the ellipse
+     */
+    public void drawEllipse(
+        double x,
+        double y,
+        double width,
+        double height
+    ) {
+        gc.strokeOval(x, y, width, height);
+    }
+
+    /**
+     * Draws the outline of a circle.
+     *
+     * @param x the starting x-coordinate
+     * @param y the starting y-coordinate
+     * @param diameter the diameter of the circle
+     */
+    public void drawCircle(
+        double x,
+        double y,
+        double diameter
+    ) {
+        gc.strokeOval(x, y, diameter, diameter);
+    }
+
+    /**
+     * Draws the outline of a triangle using three calculated points.
+     *
+     * @param startX the starting x-coordinate
+     * @param startY the starting y-coordinate
+     * @param endX the ending x-coordinate
+     * @param endY the ending y-coordinate
+     */
+    public void drawTriangle(
+        double startX,
+        double startY,
+        double endX,
+        double endY
+    ) {
+        double[] xPoints = {
+            startX,
+            endX,
+            (startX + endX) / 2
+        };
+
+        double[] yPoints = {
+            endY,
+            endY,
+            startY
+        };
+
+        gc.strokePolygon(xPoints, yPoints, 3);
+    }
+}
