@@ -1,0 +1,48 @@
+package com.mycompany.mavenproject1;
+
+import javafx.scene.canvas.GraphicsContext;
+
+/**
+ * Manages freehand drawing operations on the canvas.
+ *
+ * Uses a GraphicsContext to draw the individual line segments
+ * needed to create pencil-style drawing.
+ */
+public class DrawingManager {
+
+    private GraphicsContext gc;
+
+    /**
+     * Creates a DrawingManager using the provided GraphicsContext.
+     *
+     * @param gc the GraphicsContext used for drawing
+     */
+    public DrawingManager(GraphicsContext gc) {
+        this.gc = gc;
+    }
+
+    /**
+     * Draws a line segment between two points.
+     *
+     * This method is used repeatedly while the mouse is being
+     * dragged to create a continuous pencil-style line.
+     *
+     * @param startX the starting x-coordinate
+     * @param startY the starting y-coordinate
+     * @param endX the ending x-coordinate
+     * @param endY the ending y-coordinate
+     */
+    public void drawPencil(
+        double startX,
+        double startY,
+        double endX,
+        double endY
+    ) {
+        gc.strokeLine(
+            startX,
+            startY,
+            endX,
+            endY
+        );
+    }
+}
