@@ -56,7 +56,7 @@ Update #6 9/20/26, 11:29 AM EST (airport coding time)
 Update #7 9/21/26, 12:34 PM EST
 - added jpeg, png, and bmp support
 
-Update #6 9/21/26, 10:23 AM CST 
+Update #8 9/21/26, 10:23 AM CST 
 - Added the ability to draw lines on a image that is open
 - Now you can open a image and freely draw lines on, save it and open it again and it will remain there
 - When you open a image larger than 800x500 it will cover the colorpicker on the top
@@ -65,3 +65,28 @@ SPRINT #2 KNOWN ISSUES
 - When I open certain images it can block the color picker + scale (FIXED)
 - Drawing lines then opening the image will not show up while on a blank canvas i can (FIXED, had to rewrite the stackpane function cus it was extend only drawing lines on the bottom)
 - colorpicker gets blocked when opening a larger image
+
+Update #9 9/23/26, 5:43 PM CST
+- Added Javadoc documentation
+- Added a adjuster where you can adjust the line to 1-20px
+- Added a line width label that displays the current width
+- Added a color picker for well picking colors
+- Added a label for what color you choose in a hexadecimal format
+- Added a color grabber tool for a selecting a color directly from the canvas
+- Added a pencil for freehand drawing 
+
+Update #10 9/23/26, 11:01 PM CST
+- Added shapes for drawing
+- Added the option to pick solid or dashed lines
+- Added support for multiple img tabs
+- Added a pun in the java about
+- Added more a file for drawing and shape for organization
+- Added a "imagetab" to help organize the workshop
+
+SPRINT #3 Known Issues (Fixed)
+- the screen shaking when you draw
+- Opening a image and it blocks colorpicker + scale
+
+ISSUES HAVE YET TO BE FIXED
+- Additional img tabs can be created but drawing only works on the main tab
+- Drawing does not work on a additional drawing tab
