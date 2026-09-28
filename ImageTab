@@ -1,0 +1,117 @@
+package com.mycompany.mavenproject1;
+
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.StackPane;
+
+/**
+ * is an individual image workspace inside a tab.
+ *
+ * Each ImageTab contains an ImageView for displaying an image,
+ * a Canvas for drawing, and a ScrollPane for navigating larger images.
+ */
+public class ImageTab {
+
+    private ImageView imageView;
+    private Canvas canvas;
+    private GraphicsContext gc;
+    private StackPane drawingArea;
+    private ScrollPane scrollPane;
+
+    private boolean unsavedChanges = false;
+
+    /**
+     * this makes a new image tab with a blank canvas and then sets up
+     * the components needed for displaying and drawing on images.
+     */
+    public ImageTab() {
+
+        // image display
+        imageView = new ImageView();
+        imageView.setMouseTransparent(true);
+
+        // drawing canvas
+        canvas = new Canvas(1200, 800);
+        gc = canvas.getGraphicsContext2D();
+
+        // drawing area
+        drawingArea = new StackPane();
+
+        drawingArea.getChildren().addAll(
+            imageView,
+            canvas
+        );
+
+        canvas.toFront();
+
+        // large image support
+        scrollPane = new ScrollPane();
+        scrollPane.setContent(drawingArea);
+        scrollPane.setPannable(true);
+    }
+
+    /**
+     * This gets the ImageView used to display the current image.
+     *
+     * @return the ImageView for this tab
+     */
+    public ImageView getImageView() {
+        return imageView;
+    }
+
+    /**
+     * this gets the Canvas used for drawing.
+     *
+     * @return the drawing Canvas for this tab
+     */
+    public Canvas getCanvas() {
+        return canvas;
+    }
+
+    /**
+     * this gets the GraphicsContext used to draw on the canvas.
+     *
+     * @return the GraphicsContext for this tab's canvas
+     */
+    public GraphicsContext getGraphicsContext() {
+        return gc;
+    }
+
+    /**
+     * this gets the StackPane containing the image and drawing canvas.
+     *
+     * @return the drawing area for this tab
+     */
+    public StackPane getDrawingArea() {
+        return drawingArea;
+    }
+
+    /**
+     * this gets the ScrollPane used to navigate around larger images.
+     *
+     * @return the ScrollPane for this tab
+     */
+    public ScrollPane getScrollPane() {
+        return scrollPane;
+    }
+
+    /**
+     * Checks whether the image in this tab has unsaved changes.
+     *
+     * @return true if there are unsaved changes, otherwise false
+     */
+    public boolean hasUnsavedChanges() {
+        return unsavedChanges;
+    }
+
+    /**
+     * Updates the unsaved changes status of this tab.
+     *
+     * @param unsavedChanges true if the tab contains unsaved changes
+     */
+    public void setUnsavedChanges(boolean unsavedChanges) {
+        this.unsavedChanges = unsavedChanges;
+    }
+}
