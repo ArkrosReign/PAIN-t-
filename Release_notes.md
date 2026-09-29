@@ -92,6 +92,6 @@ ISSUES HAVE YET TO BE FIXED
 - Drawing does not work on a additional drawing tab
 
 Update #11 9/28/26, 10:01 PM CST
--Added a clear confirmation when you wish to clear a canvas
+- Added a clear confirmation when you wish to clear a canvas
 - Added the ability to add text to canvas
-- Added more shapes
+- Added more shapes (right triangle)
