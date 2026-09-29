@@ -90,3 +90,8 @@ SPRINT #3 Known Issues (Fixed)
 ISSUES HAVE YET TO BE FIXED
 - Additional img tabs can be created but drawing only works on the main tab
 - Drawing does not work on a additional drawing tab
+
+Update #11 9/28/26, 10:01 PM CST
+-Added a clear confirmation when you wish to clear a canvas
+- Added the ability to add text to canvas
+- Added more shapes
