@@ -95,3 +95,7 @@ Update #11 9/28/26, 10:01 PM CST
 - Added a clear confirmation when you wish to clear a canvas
 - Added the ability to add text to canvas
 - Added more shapes (right triangle)
+
+Update #12 10/1/26, 12:47 AM CST
+- added the polygon shape but javafx asks for how many sides u wish to draw
+- Added the undo/redo button
