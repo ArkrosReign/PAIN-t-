@@ -3,10 +3,10 @@ package com.mycompany.mavenproject1;
 import javafx.scene.canvas.GraphicsContext;
 
 /**
- * Manages the drawing of basic geometric shapes on a canvas.
+ * This class the drawing of basic geometric shapes on a canvas.
  *
- * Uses a GraphicsContext to draw rectangles, squares, ellipses,
- * circles, and triangles.
+ * SM uses a GraphicsContext to draw rectangles, squares, ellipses,
+ * circles, triangles, and regular polygons.
  */
 public class ShapeManager {
 
@@ -21,96 +21,101 @@ public class ShapeManager {
         this.gc = gc;
     }
 
-    /**
-     * Draws the outline of a rectangle.
-     *
-     * @param x the starting x-coordinate
-     * @param y the starting y-coordinate
-     * @param width the width of the rectangle
-     * @param height the height of the rectangle
-     */
-    public void drawRectangle(
-        double x,
-        double y,
-        double width,
-        double height
-    ) {
+    public void drawRectangle(double x, double y, double width, double height) {
         gc.strokeRect(x, y, width, height);
     }
 
-    /**
-     * Draws the outline of a square.
-     *
-     * @param x the starting x-coordinate
-     * @param y the starting y-coordinate
-     * @param size the length of each side
-     */
-    public void drawSquare(
-        double x,
-        double y,
-        double size
-    ) {
+    public void drawSquare(double x, double y, double size) {
         gc.strokeRect(x, y, size, size);
     }
 
-    /**
-     * Draws the outline of an ellipse.
-     *
-     * @param x the starting x-coordinate
-     * @param y the starting y-coordinate
-     * @param width the width of the ellipse
-     * @param height the height of the ellipse
-     */
-    public void drawEllipse(
-        double x,
-        double y,
-        double width,
-        double height
-    ) {
+    public void drawEllipse(double x, double y, double width, double height) {
         gc.strokeOval(x, y, width, height);
     }
 
-    /**
-     * Draws the outline of a circle.
-     *
-     * @param x the starting x-coordinate
-     * @param y the starting y-coordinate
-     * @param diameter the diameter of the circle
-     */
-    public void drawCircle(
-        double x,
-        double y,
-        double diameter
-    ) {
+    public void drawCircle(double x, double y, double diameter) {
         gc.strokeOval(x, y, diameter, diameter);
     }
 
-    /**
-     * Draws the outline of a triangle using three calculated points.
-     *
-     * @param startX the starting x-coordinate
-     * @param startY the starting y-coordinate
-     * @param endX the ending x-coordinate
-     * @param endY the ending y-coordinate
-     */
-    public void drawTriangle(
-        double startX,
-        double startY,
-        double endX,
-        double endY
-    ) {
-        double[] xPoints = {
-            startX,
-            endX,
-            (startX + endX) / 2
-        };
-
-        double[] yPoints = {
-            endY,
-            endY,
-            startY
-        };
-
+    public void drawTriangle(double startX, double startY, double endX, double endY) {
+        double[] xPoints = {startX, endX, (startX + endX) / 2};
+        double[] yPoints = {endY, endY, startY};
         gc.strokePolygon(xPoints, yPoints, 3);
+    }
+
+    public void drawRightTriangle(double startX, double startY, double endX, double endY) {
+        double[] xPoints = {startX, startX, endX};
+        double[] yPoints = {startY, endY, endY};
+        gc.strokePolygon(xPoints, yPoints, 3);
+    }
+
+    public void drawPolygon(
+            double centerX,
+            double centerY,
+            double radius,
+            int sides
+    ) {
+        if (sides < 3 || radius <= 0) {
+            return;
+        }
+
+        double[] xPoints = new double[sides];
+        double[] yPoints = new double[sides];
+
+        for (int i = 0; i < sides; i++) {
+            double angle =
+                    2 * Math.PI * i / sides - Math.PI / 2;
+
+            xPoints[i] =
+                    centerX + radius * Math.cos(angle);
+
+            yPoints[i] =
+                    centerY + radius * Math.sin(angle);
+        }
+
+        gc.strokePolygon(xPoints, yPoints, sides);
+    }
+
+    /**
+     * This draws a star with the specified number of points.
+     *
+     * @param centerX the x-coordinate of the star's center
+     * @param centerY the y-coordinate of the star's center
+     * @param outerRadius the distance from the center to an outer point
+     * @param points the number of star points
+     */
+    public void drawStar(
+            double centerX,
+            double centerY,
+            double outerRadius,
+            int points
+    ) {
+        if (points < 2 || outerRadius <= 0) {
+            return;
+        }
+
+        int vertices = points * 2;
+
+        double[] xPoints = new double[vertices];
+        double[] yPoints = new double[vertices];
+
+        double innerRadius = outerRadius * 0.45;
+
+        for (int i = 0; i < vertices; i++) {
+            double angle =
+                    Math.PI * i / points - Math.PI / 2;
+
+            double radius = (i % 2 == 0)
+                    ? outerRadius
+                    : innerRadius;
+
+            xPoints[i] =
+                    centerX + radius * Math.cos(angle);
+
+            yPoints[i] =
+                    centerY + radius * Math.sin(angle);
+        }
+
+        gc.strokePolygon(xPoints, yPoints, vertices);
     }
 }
