@@ -1,0 +1,191 @@
+package com.mycompany.mavenproject1;
+
+import javafx.scene.SnapshotParameters;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.WritableImage;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Stack;
+
+/**
+ * URM manages undo and redo operations for the canvases in Joes' Pain(t).
+ *
+ * Each canvas has its own undo and redo stack so that editing one tab
+ * does not affect the editing history of another tab.
+ */
+public class UndoRedoManager {
+
+    private final Map<Canvas, Stack<WritableImage>> undoStacks =
+        new HashMap<>();
+
+    private final Map<Canvas, Stack<WritableImage>> redoStacks =
+        new HashMap<>();
+
+    /**
+     * Gets the undo stack for a canvas.
+     *
+     * If the canvas does not already have an undo stack,
+     * one is created automatically.
+     *
+     * @param canvas the canvas whose undo stack is needed
+     * @return the undo stack for the canvas
+     */
+    private Stack<WritableImage> getUndoStack(Canvas canvas) {
+        return undoStacks.computeIfAbsent(
+            canvas,
+            key -> new Stack<>()
+        );
+    }
+
+    /**
+     * this gets the redo stack for a canvas.
+     *
+     * if the canvas does not already have a redo stack,
+     * one is created automatically.
+     *
+     * @param canvas the canvas whose redo stack is needed
+     * @return the redo stack for the canvas
+     */
+    private Stack<WritableImage> getRedoStack(Canvas canvas) {
+        return redoStacks.computeIfAbsent(
+            canvas,
+            key -> new Stack<>()
+        );
+    }
+
+    /**
+     * this saves the current state of a canvas to the undo stack.
+     *
+     * the redo stack is cleared because making a new edit
+     * creates a new editing path.
+     *
+     * @param canvas the canvas whose current state should be saved
+     */
+   public void saveUndoState(Canvas canvas) {
+    int width = (int) Math.ceil(canvas.getWidth());
+    int height = (int) Math.ceil(canvas.getHeight());
+
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+
+    WritableImage snapshot = new WritableImage(width, height);
+
+    SnapshotParameters parameters = new SnapshotParameters();
+    parameters.setFill(javafx.scene.paint.Color.TRANSPARENT);
+
+    canvas.snapshot(parameters, snapshot);
+
+    getUndoStack(canvas).push(snapshot);
+    getRedoStack(canvas).clear();
+}
+
+    /**
+     * this restores the previous state of a canvas.
+     *
+     * the current state is saved to the redo stack before
+     * the previous state is restored.
+     *
+     * @param canvas the canvas to undo
+     */
+    public void undo(Canvas canvas) {
+
+        Stack<WritableImage> undoStack = getUndoStack(canvas);
+        Stack<WritableImage> redoStack = getRedoStack(canvas);
+
+        if (!undoStack.isEmpty()) {
+
+            WritableImage currentState = new WritableImage(
+                (int) canvas.getWidth(),
+                (int) canvas.getHeight()
+            );
+
+            canvas.snapshot(
+                new SnapshotParameters(),
+                currentState
+            );
+
+            redoStack.push(currentState);
+
+            WritableImage previousState = undoStack.pop();
+
+            GraphicsContext gc = canvas.getGraphicsContext2D();
+
+            gc.clearRect(
+                0,
+                0,
+                canvas.getWidth(),
+                canvas.getHeight()
+            );
+
+            gc.drawImage(
+                previousState,
+                0,
+                0
+            );
+        }
+    }
+
+    /**
+     * this restores the next state of a canvas from the redo stack.
+     *
+     * the current state is saved to the undo stack before
+     * the next state is restored.
+     *
+     * @param canvas the canvas to redo
+     */
+    public void redo(Canvas canvas) {
+
+        Stack<WritableImage> undoStack = getUndoStack(canvas);
+        Stack<WritableImage> redoStack = getRedoStack(canvas);
+
+        if (!redoStack.isEmpty()) {
+
+            WritableImage currentState = new WritableImage(
+                (int) canvas.getWidth(),
+                (int) canvas.getHeight()
+            );
+
+            canvas.snapshot(
+                new SnapshotParameters(),
+                currentState
+            );
+
+            undoStack.push(currentState);
+
+            WritableImage nextState = redoStack.pop();
+
+            GraphicsContext gc = canvas.getGraphicsContext2D();
+
+            gc.clearRect(
+                0,
+                0,
+                canvas.getWidth(),
+                canvas.getHeight()
+            );
+
+            gc.drawImage(
+                nextState,
+                0,
+                0
+            );
+        }
+    }
+
+    /**
+     * this clears the undo and redo history for a canvas.
+     *
+     * Very useful when a new image is opened in a tab,
+     * because the previous image's editing history should
+     * not carry over to the newly opened image.
+     *
+     * @param canvas the canvas whose history should be cleared
+     */
+    public void clearHistory(Canvas canvas) {
+
+        getUndoStack(canvas).clear();
+        getRedoStack(canvas).clear();
+    }
+}
