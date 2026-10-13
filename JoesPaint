@@ -13,6 +13,12 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.TextInputDialog;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Region;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 
 // for image display
 import javafx.scene.image.Image;
@@ -23,11 +29,7 @@ import javafx.scene.SnapshotParameters;
 import javafx.scene.image.WritableImage;
 
 // now for more saving galore
-import javafx.embed.swing.SwingFXUtils;
-import java.awt.image.BufferedImage;
-
-// pls make all these imports STOP, anyways to help saveas
-import javax.imageio.ImageIO;
+// File handling is provided by FileManager.
 import java.io.IOException;
 import java.io.File;
 
@@ -42,11 +44,14 @@ import javafx.scene.image.PixelReader;
 // smart save
 import java.util.Optional;
 import javafx.scene.control.ButtonType;
+import java.util.Map;
+import java.util.HashMap;
 
 // drawing
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Slider;
+import javafx.geometry.Rectangle2D;
 
 // keyshortcut stuffs
 import javafx.scene.input.KeyCode;
@@ -59,7 +64,6 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.Button;
 
 // layout
-import javafx.scene.layout.Priority;
 
 
 /**
@@ -72,9 +76,32 @@ public class JoesPaint extends Application {
 
     private boolean unsavedChanges = false;
     private File currentFile;
+    private UndoRedoManager undoRedoManager = new UndoRedoManager();
+    private FileManager fileManager = new FileManager();
+    private AutoSave autoSave;
+    private Webserver webserver;
+
+    private Map<Tab, ImageView> tabImageViews = new HashMap<>();
+    private Map<Tab, Canvas> tabCanvases = new HashMap<>();
+    private Map<Tab, Canvas> tabSelectionOverlays = new HashMap<>();
+    private Map<Tab, StackPane> tabDrawingAreas = new HashMap<>();
+    private Map<Tab, File> tabFiles = new HashMap<>();
 
     double startX = 0;
     double startY = 0;
+    int polygonSides = 5;
+    boolean pencilUndoSaved = false;
+    
+    double selectionStartX = 0;
+    double selectionStartY = 0;
+    double selectionEndX = 0;
+    double selectionEndY = 0;
+    
+    Canvas selectionOverlay;
+    boolean pasteMode = false;
+
+WritableImage copiedImage = null;
+    
 
     /**
      * starts the application and sets up the
@@ -111,6 +138,18 @@ public class JoesPaint extends Application {
             }
         });
 
+        stage.setOnHidden(e -> {
+            if (autoSave != null) {
+                autoSave.stop();
+            }
+        if (webserver != null) {
+            webserver.stop();
+    }
+        });
+
+        // setup for outside the window
+        BorderPane root = new BorderPane();
+
         // basically make the menu then file
         MenuBar menuBar = new MenuBar();
         Menu fileMenu = new Menu("File");
@@ -119,10 +158,14 @@ public class JoesPaint extends Application {
         MenuItem openItem = new MenuItem("Open");
         MenuItem saveItem = new MenuItem("Save");
         MenuItem saveAsItem = new MenuItem("Save As");
+        MenuItem undoItem = new MenuItem("Undo");
+        MenuItem redoItem = new MenuItem("Redo");
+        MenuItem copyItem = new MenuItem("Copy");
+        MenuItem pasteItem = new MenuItem("Paste");
         MenuItem clearItem = new MenuItem("Clear");
         MenuItem exitItem = new MenuItem("Exit");
 
-        saveItem.setAccelerator( //for key shortcut, aka save 
+        saveItem.setAccelerator( //for key shortcut, aka save
             new KeyCodeCombination(
                 KeyCode.S,
                 KeyCombination.SHORTCUT_DOWN
@@ -139,9 +182,10 @@ public class JoesPaint extends Application {
 
         // add both menus to the menu bar
         menuBar.getMenus().addAll(fileMenu, helpMenu);
+        
 
         /**
-         * Displays basic instructions for using the application.
+         * shows basic instructions for using the application.
          */
         helpItem.setOnAction(e -> {
 
@@ -171,6 +215,7 @@ public class JoesPaint extends Application {
                 + "A editing application powered by JavaFX. "
                 + "Also powered by a caffeine addict"
             );
+
             alert.showAndWait();
         });
 
@@ -186,7 +231,9 @@ public class JoesPaint extends Application {
          * Creates the canvas used for drawing and connects it to
          * the shape and drawing managers.
          */
-        Canvas canvas = new Canvas(800, 500);         // drawing canvas
+        Canvas canvas = new Canvas(800, 500);         // drawing canvas       
+        selectionOverlay = new Canvas(canvas.getWidth(), canvas.getHeight());
+        selectionOverlay.setMouseTransparent(true);       
         GraphicsContext gc = canvas.getGraphicsContext2D();
 
         ShapeManager shapeManager = new ShapeManager(gc);
@@ -204,11 +251,16 @@ public class JoesPaint extends Application {
         toolSelector.getItems().addAll(
             "Line",
             "Rectangle",
+            "Select",
             "Pencil",
+            "Text",
             "Color Grabber",
             "Square",
             "Ellipse",
             "Circle",
+            "Right Triangle",
+            "Polygon",
+            "Star",
             "Triangle"
         );
 
@@ -237,6 +289,8 @@ public class JoesPaint extends Application {
 
         // setup drawing area
         StackPane drawingArea = new StackPane();
+        
+        drawingArea.getChildren().add(selectionOverlay);
 
         drawingArea.getChildren().addAll(
             imageView,
@@ -244,6 +298,7 @@ public class JoesPaint extends Application {
         );
 
         canvas.toFront();
+        selectionOverlay.toFront();
 
         // large image support
         ScrollPane scrollPane = new ScrollPane();
@@ -252,14 +307,46 @@ public class JoesPaint extends Application {
         scrollPane.setPannable(true);
 
         /**
-         * Records the starting mouse position for drawing tools.
-         * If the Color Grabber is selected, the clicked pixel color
+         * records the starting mouse position for drawing tools.
+         * if the Color Grabber is selected, the clicked pixel color
          * is also retrieved and placed into the color picker.
          */
         canvas.setOnMousePressed(e -> {
 
             startX = e.getX();
             startY = e.getY();
+            pencilUndoSaved = false;
+            
+            if (pasteMode && copiedImage != null) {
+
+        undoRedoManager.saveUndoState(canvas);
+
+        gc.drawImage(
+            copiedImage,
+            e.getX(),
+            e.getY()
+        );
+
+        pasteMode = false;
+
+        selectionOverlay.getGraphicsContext2D().clearRect(
+            0,
+            0,
+            selectionOverlay.getWidth(),
+            selectionOverlay.getHeight()
+        );
+
+        unsavedChanges = true;
+
+        return;
+    }
+            
+            if (toolSelector.getValue().equals("Select")) {
+                selectionStartX = e.getX();
+                selectionStartY = e.getY();
+                selectionEndX = e.getX();
+                selectionEndY = e.getY();
+}
 
             if (toolSelector.getValue().equals("Color Grabber")) {
 
@@ -277,15 +364,76 @@ public class JoesPaint extends Application {
 
                 colorPicker.setValue(grabbedColor);
             }
+
+            // text tool
+            if (toolSelector.getValue().equals("Text")) {
+
+                TextInputDialog textDialog = new TextInputDialog();
+
+                textDialog.setTitle("Add Text");
+                textDialog.setHeaderText(
+                    "Enter text to add to the image:"
+                );
+                textDialog.setContentText("Text:");
+
+                Optional<String> result = textDialog.showAndWait();
+
+                if (result.isPresent() && !result.get().isEmpty()) {
+
+                    undoRedoManager.saveUndoState(canvas);
+
+                    gc.setFill(colorPicker.getValue());
+
+                    gc.fillText(
+                        result.get(),
+                        e.getX(),
+                        e.getY()
+                    );
+
+                    unsavedChanges = true;
+                }
+            }
         });
 
         /**
-         * Draws a continuous line while the user drags the mouse
+         * this draws a continuous line while the user drags the mouse
          * when the Pencil tool is selected.
          */
         canvas.setOnMouseDragged(e -> {
+            
+            if (toolSelector.getValue().equals("Select")) {
 
+    selectionEndX = e.getX();
+    selectionEndY = e.getY();
+
+    GraphicsContext selectionGc =
+        selectionOverlay.getGraphicsContext2D();
+
+    selectionGc.clearRect(
+        0,
+        0,
+        selectionOverlay.getWidth(),
+        selectionOverlay.getHeight()
+    );
+
+    drawSelection(
+        selectionGc,
+        selectionStartX,
+        selectionStartY,
+        selectionEndX,
+        selectionEndY
+    );
+}
+            
+            
             if (toolSelector.getValue().equals("Pencil")) {
+
+                if (!pencilUndoSaved) {
+
+                    undoRedoManager.saveUndoState(canvas);
+
+                    pencilUndoSaved = true;
+                }
 
                 gc.setStroke(colorPicker.getValue());
 
@@ -304,7 +452,7 @@ public class JoesPaint extends Application {
         });
 
         /**
-         * Draws the currently selected tool when the mouse is released.
+         * this draws the currently selected tool when the mouse is released.
          * This also applies the selected color, line width, and line style.
          */
         canvas.setOnMouseReleased(e -> {
@@ -320,6 +468,16 @@ public class JoesPaint extends Application {
             }
 
             String selectedTool = toolSelector.getValue();
+            
+            System.out.println("Mouse released. Selected tool: " + selectedTool);
+
+            if (!selectedTool.equals("Color Grabber")
+                    && !selectedTool.equals("Pencil")
+                    && !selectedTool.equals("Text")
+                    && !selectedTool.equals("Select")) {
+
+                undoRedoManager.saveUndoState(canvas);
+            }
 
             if (selectedTool.equals("Line")) {
 
@@ -378,212 +536,426 @@ public class JoesPaint extends Application {
                     e.getX(),
                     e.getY()
                 );
+
+            } else if (selectedTool.equals("Right Triangle")) {
+
+                shapeManager.drawRightTriangle(
+                    startX,
+                    startY,
+                    e.getX(),
+                    e.getY()
+                );
+
+            } else if (selectedTool.equals("Polygon")) {
+                TextInputDialog polygonDialog = new TextInputDialog("5");
+                polygonDialog.setTitle("Polygon");
+                polygonDialog.setHeaderText("Enter the number of sides:");
+                polygonDialog.setContentText("Sides:");
+
+                Optional<String> result = polygonDialog.showAndWait();
+                if (result.isPresent()) {
+                    try {
+                        int sides = Integer.parseInt(result.get());
+                        if (sides >= 3) {
+                            polygonSides = sides;
+                            double centerX = (startX + e.getX()) / 2;
+                            double centerY = (startY + e.getY()) / 2;
+                            double radius = Math.min(
+                                Math.abs(e.getX() - startX),
+                                Math.abs(e.getY() - startY)
+                            ) / 2;
+                            shapeManager.drawPolygon(
+                                centerX, centerY, radius, polygonSides
+                            );
+                        } else {
+                            Alert alert = new Alert(Alert.AlertType.WARNING);
+                            alert.setTitle("Invalid Polygon");
+                            alert.setHeaderText(null);
+                            alert.setContentText(
+                                "A polygon must have at least 3 sides."
+                            );
+                            alert.showAndWait();
+                        }
+                    } catch (NumberFormatException ex) {
+                        Alert alert = new Alert(Alert.AlertType.WARNING);
+                        alert.setTitle("Invalid Number");
+                        alert.setHeaderText(null);
+                        alert.setContentText("Please enter a whole number.");
+                        alert.showAndWait();
+                    }
+                }
+            } else if (selectedTool.equals("Star")) {
+                TextInputDialog starDialog = new TextInputDialog("5");
+                starDialog.setTitle("Star Points");
+                starDialog.setHeaderText("Choose the number of star points");
+                starDialog.setContentText("Points (4 or more):");
+
+                Optional<String> result = starDialog.showAndWait();
+                if (result.isPresent()) {
+                    try {
+                        int points = Integer.parseInt(result.get());
+                        if (points >= 4) {
+                            double centerX = (startX + e.getX()) / 2;
+                            double centerY = (startY + e.getY()) / 2;
+                            double radius = Math.min(
+                                Math.abs(e.getX() - startX),
+                                Math.abs(e.getY() - startY)
+                            ) / 2;
+                            shapeManager.drawStar(
+                                centerX, centerY, radius, points
+                            );
+                        } else {
+                            Alert alert = new Alert(Alert.AlertType.WARNING);
+                            alert.setTitle("Invalid Star");
+                            alert.setHeaderText(null);
+                            alert.setContentText(
+                                "A star must have at least 4 points."
+                            );
+                            alert.showAndWait();
+                        }
+                    } catch (NumberFormatException ex) {
+                        Alert alert = new Alert(Alert.AlertType.WARNING);
+                        alert.setTitle("Invalid Number");
+                        alert.setHeaderText(null);
+                        alert.setContentText("Please enter a whole number.");
+                        alert.showAndWait();
+                    }
+                }
             }
 
             unsavedChanges = true;
         });
 
+        //tp is now declared before menu handlers that use it.
+        TabPane tabPane = new TabPane();
+
         /**
-         * Clears the current canvas and marks the image as having
-         * unsaved changes.
+         * this clears the current canvas after asking the user
+         * for confirmation.
          */
         clearItem.setOnAction(e -> {
 
-            gc.clearRect(
-                0,
-                0,
-                canvas.getWidth(),
-                canvas.getHeight()
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+
+            alert.setTitle("Clear Canvas");
+            alert.setHeaderText("Clear Canvas?");
+            alert.setContentText(
+                "Are you sure you want to clear the canvas?"
             );
 
-            unsavedChanges = true;
+            Optional<ButtonType> result = alert.showAndWait();
+
+            if (result.isPresent() && result.get() == ButtonType.OK) {
+
+                Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+                Canvas selectedCanvas = tabCanvases.get(selectedTab);
+                Canvas selectedSelectionOverlay = tabSelectionOverlays.get(selectedTab);
+
+                if (selectedCanvas != null && selectedSelectionOverlay != null) {
+                    GraphicsContext selectedGc = selectedCanvas.getGraphicsContext2D();
+
+                    undoRedoManager.saveUndoState(selectedCanvas);
+
+                    selectedGc.clearRect(
+                        0,
+                        0,
+                        selectedCanvas.getWidth(),
+                        selectedCanvas.getHeight()
+                    );
+
+                    selectedSelectionOverlay.getGraphicsContext2D().clearRect(
+                        0,
+                        0,
+                        selectedSelectionOverlay.getWidth(),
+                        selectedSelectionOverlay.getHeight()
+                    );
+
+                    copiedImage = null;
+                    pasteMode = false;
+
+                    unsavedChanges = true;
+                }
+            }
         });
+        /**
+ * this undoes the most recent canvas change.
+ */
+    undoItem.setOnAction(e -> {
+
+        Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+        Canvas selectedCanvas = tabCanvases.get(selectedTab);
+
+        if (selectedCanvas != null) {
+            undoRedoManager.undo(selectedCanvas);
+            unsavedChanges = true;
+        }
+    });
+    undoItem.setAccelerator(
+    new KeyCodeCombination(KeyCode.Z, KeyCombination.CONTROL_DOWN)
+);
+
+/**
+ * this redoes the most recently undone canvas change.
+ */
+redoItem.setOnAction(e -> {
+
+    Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+    Canvas selectedCanvas = tabCanvases.get(selectedTab);
+
+    if (selectedCanvas != null) {
+        undoRedoManager.redo(selectedCanvas);
+        unsavedChanges = true;
+    }
+});
+copyItem.setOnAction(e -> {
+
+    Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+    StackPane selectedDrawingArea = tabDrawingAreas.get(selectedTab);
+    Canvas selectedSelectionOverlay = tabSelectionOverlays.get(selectedTab);
+
+    if (selectedDrawingArea != null && selectedSelectionOverlay != null) {
+        copiedImage = copySelection(
+            selectedDrawingArea,
+            selectedSelectionOverlay,
+            selectionStartX,
+            selectionStartY,
+            selectionEndX,
+            selectionEndY
+        );
+    }
+});
+pasteItem.setOnAction(e -> {
+
+    if (copiedImage != null) {
+        pasteMode = true;
+    }
+});
+    redoItem.setAccelerator(
+        new KeyCodeCombination(KeyCode.Y, KeyCombination.CONTROL_DOWN)
+    );
 
         /**
-         * Opens an image selected by the user and resizes the canvas
+         * opens an image selected by the user and resizes the canvas
          * to match the dimensions of the opened image.
          */
         openItem.setOnAction(e -> {
 
-            FileChooser fileChooser = new FileChooser();
-
-            fileChooser.setTitle("Open Image");
-
-            fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter(
-                    "PNG Images",
-                    "*.png"
-                ),
-                new FileChooser.ExtensionFilter(
-                    "JPG Images",
-                    "*.jpg",
-                    "*.jpeg"
-                ),
-                new FileChooser.ExtensionFilter(
-                    "BMP Images",
-                    "*.bmp"
-                )
-            );
-
-            File selectedFile = fileChooser.showOpenDialog(stage);
+            File selectedFile = fileManager.chooseOpenFile(stage);
 
             if (selectedFile != null) {
 
-                Image image = new Image(
-                    selectedFile.toURI().toString()
+                Image image = fileManager.openImage(selectedFile);
+
+                if (image != null) {
+
+                    Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+
+                    ImageView selectedImageView = tabImageViews.get(selectedTab);
+                    Canvas selectedCanvas = tabCanvases.get(selectedTab);
+                    Canvas selectedSelectionOverlay = tabSelectionOverlays.get(selectedTab);
+
+                    if (selectedImageView != null && selectedCanvas != null
+                            && selectedSelectionOverlay != null) {
+
+                        selectedImageView.setImage(null);
+
+                        selectedCanvas.setWidth(image.getWidth());
+                        selectedCanvas.setHeight(image.getHeight());
+
+                        selectedSelectionOverlay.setWidth(image.getWidth());
+                        selectedSelectionOverlay.setHeight(image.getHeight());
+
+                        GraphicsContext selectedGc = selectedCanvas.getGraphicsContext2D();
+                        selectedGc.clearRect(
+                            0,
+                            0,
+                            selectedCanvas.getWidth(),
+                            selectedCanvas.getHeight()
+                        );
+                        selectedGc.drawImage(image, 0, 0);
+
+                        // new image starts a redo/undo history
+                        // for this tab.
+                        undoRedoManager.clearHistory(selectedCanvas);
+
+                        tabFiles.put(selectedTab, selectedFile);
+                        currentFile = selectedFile;
+                        unsavedChanges = false;
+                    }
+                }
+            }
+        });
+
+        /**
+         * saves the current drawing.
+         * If this tab has not been saved yet, asks for a destination.
+         * Otherwise, saves over the file associated with this tab.
+         */
+        saveItem.setOnAction(e -> {
+
+            Tab selectedTab =
+                tabPane.getSelectionModel().getSelectedItem();
+
+            if (selectedTab == null) {
+                return;
+            }
+
+            StackPane selectedDrawingArea =
+                tabDrawingAreas.get(selectedTab);
+
+            if (selectedDrawingArea == null) {
+                return;
+            }
+
+            //each tab keeps track of its own
+            File selectedFile = tabFiles.get(selectedTab);
+
+            // A new/untitled drawing has no destination yet.
+            if (selectedFile == null) {
+
+                FileChooser fileChooser =
+                    fileManager.createSaveFileChooser();
+
+                selectedFile =
+                    fileChooser.showSaveDialog(stage);
+
+                // Do nothing if the user cancels the dialog.
+                if (selectedFile == null) {
+                    return;
+                }
+
+                String format =
+                    fileManager.getFormatFromFilter(
+                        fileChooser.getSelectedExtensionFilter()
+                    );
+
+                selectedFile = fileManager.ensureFileExtension(selectedFile, format);
+
+                //added a warning if you decide to change format u will get a warning
+                if (!confirmAlternativeFormat(format)) {
+                    return;
+                }
+
+                boolean saved = fileManager.saveImage(
+                    selectedDrawingArea,
+                    selectedFile,
+                    format
                 );
 
-                imageView.setImage(image);
+                if (saved) {
+                    tabFiles.put(selectedTab, selectedFile);
+                    currentFile = selectedFile;
+                    unsavedChanges = false;
 
-                // resize canvas to match opened image
-                canvas.setWidth(image.getWidth());
-                canvas.setHeight(image.getHeight());
+                    Alert alert = new Alert(
+                        Alert.AlertType.INFORMATION
+                    );
+                    alert.setTitle("Save");
+                    alert.setHeaderText(null);
+                    alert.setContentText(
+                        "File saved: " + selectedFile.getName()
+                    );
+                    alert.showAndWait();
+                }
+
+                return;
+            }
+
+            String format =
+                fileManager.getFormatFromFile(selectedFile);
+
+            boolean saved = fileManager.saveImage(
+                selectedDrawingArea,
+                selectedFile,
+                format
+            );
+
+            if (saved) {
+                currentFile = selectedFile;
+                unsavedChanges = false;
+
+                Alert alert = new Alert(
+                    Alert.AlertType.INFORMATION
+                );
+                alert.setTitle("Save");
+                alert.setHeaderText(null);
+                alert.setContentText(
+                    "File saved: " + selectedFile.getName()
+                );
+                alert.showAndWait();
+            }
+        });
+
+        /**
+         * this saves the current drawing as a new image file using the
+         * format selected by the user.
+         */
+saveAsItem.setOnAction(e -> {
+
+    Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+
+    StackPane selectedDrawingArea =
+        tabDrawingAreas.get(selectedTab);
+
+    if (selectedTab != null && selectedDrawingArea != null) {
+
+        FileChooser fileChooser =
+            fileManager.createSaveFileChooser();
+
+        File selectedFile =
+            fileChooser.showSaveDialog(stage);
+
+        if (selectedFile != null) {
+
+            String format =
+                fileManager.getFormatFromFilter(
+                    fileChooser.getSelectedExtensionFilter()
+                );
+
+            selectedFile = fileManager.ensureFileExtension(selectedFile, format);
+
+            // the warning.
+            if (!confirmAlternativeFormat(format)) {
+                return;
+            }
+
+            boolean saved = fileManager.saveImage(
+                selectedDrawingArea,
+                selectedFile,
+                format
+            );
+
+            if (saved) {
+
+                tabFiles.put(
+                    selectedTab,
+                    selectedFile
+                );
 
                 currentFile = selectedFile;
                 unsavedChanges = false;
-            }
-        });
 
-        /**
-         * Saves the current drawing as a new image file using the
-         * format selected by the user.
-         */
-        saveAsItem.setOnAction(e -> { //save as stuff
-
-            FileChooser fileChooser = new FileChooser();
-
-            fileChooser.setTitle("Save Image");
-
-            fileChooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter(
-                    "PNG Images",
-                    "*.png"
-                ),
-                new FileChooser.ExtensionFilter(
-                    "JPG Images",
-                    "*.jpg",
-                    "*.jpeg"
-                ),
-                new FileChooser.ExtensionFilter(
-                    "BMP Images",
-                    "*.bmp"
-                )
-            );
-
-            File selectedFile = fileChooser.showSaveDialog(stage);
-
-            if (selectedFile != null) {
-
-                WritableImage snapshot = drawingArea.snapshot(
-                    new SnapshotParameters(),
-                    null
+                Alert alert = new Alert(
+                    Alert.AlertType.INFORMATION
                 );
 
-                BufferedImage bufferedImage =
-                    SwingFXUtils.fromFXImage(
-                        snapshot,
-                        null
-                    );
-
-                String format = "png";
-
-                if (fileChooser.getSelectedExtensionFilter()
-                        .getDescription()
-                        .equals("JPG Images")) {
-
-                    format = "jpg";
-
-                } else if (
-                    fileChooser.getSelectedExtensionFilter()
-                        .getDescription()
-                        .equals("BMP Images")
-                ) {
-
-                    format = "bmp";
-                }
-
-                try {
-
-                    ImageIO.write(
-                        bufferedImage,
-                        format,
-                        selectedFile
-                    );
-
-                    // Save As becomes the new current file
-                    currentFile = selectedFile;
-
-                    unsavedChanges = false;
-
-                    Alert alert = new Alert(
-                        Alert.AlertType.INFORMATION
-                    );
-
-                    alert.setTitle("Save");
-                    alert.setHeaderText(null);
-                    alert.setContentText(
-                        "File saved: "
-                        + currentFile.getName()
-                    );
-
-                    alert.showAndWait();
-
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
-            }
-        });
-        /**
-         * Saves the current drawing to the currently selected file.
-         * If no file has been selected yet, no save operation is performed.
-         */
-        saveItem.setOnAction(e -> {  // save function
-
-            if (currentFile != null) {
-
-                WritableImage snapshot = drawingArea.snapshot(
-                    new SnapshotParameters(),
-                    null
+                alert.setTitle("Save");
+                alert.setHeaderText(null);
+                alert.setContentText(
+                    "File saved: "
+                    + selectedFile.getName()
                 );
 
-                BufferedImage bufferedImage =
-                    SwingFXUtils.fromFXImage(
-                        snapshot,
-                        null
-                    );
-
-                try {
-
-                    ImageIO.write(
-                        bufferedImage,
-                        "png",
-                        currentFile
-                    );
-
-                    unsavedChanges = false;
-
-                    Alert alert = new Alert(
-                        Alert.AlertType.INFORMATION
-                    );
-
-                    alert.setTitle("Save");
-                    alert.setHeaderText(null);
-                    alert.setContentText(
-                        "File saved: "
-                        + currentFile.getName()
-                    );
-
-                    alert.showAndWait();
-
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
+                alert.showAndWait();
             }
-        });
+        }
+    }
+});
 
+   
         // program! LETS LEAVE!
         /**
-         * Closes the application window.
+         * this closes the application window.
          */
         exitItem.setOnAction(e -> {
             stage.close();
@@ -594,24 +966,31 @@ public class JoesPaint extends Application {
             openItem,
             saveItem,
             saveAsItem,
+            undoItem,
+            redoItem,
             clearItem,
+            copyItem,
+            pasteItem,
             exitItem
         );
 
         /**
-         * Creates the tabbed workspace used to hold multiple images.
+         * this creates the tabbed workspace used to hold multiple images.
          */
-        TabPane tabPane = new TabPane();
-
-        // 
+        //
         Tab firstTab = new Tab("Untitled");
 
         firstTab.setContent(scrollPane);
 
         tabPane.getTabs().add(firstTab);
 
+        tabImageViews.put(firstTab, imageView);
+        tabCanvases.put(firstTab, canvas);
+        tabSelectionOverlays.put(firstTab, selectionOverlay);
+        tabDrawingAreas.put(firstTab, drawingArea);
+
         /**
-         * Creates a button for adding additional image tabs.
+         * this creates a button for adding additional image tabs.
          */
         Button addTabButton = new Button("+");
 
@@ -621,11 +1000,36 @@ public class JoesPaint extends Application {
 
             ImageTab newImageTab = new ImageTab();
 
+            Canvas newCanvas = newImageTab.getCanvas();
+            GraphicsContext newGc = newImageTab.getGraphicsContext();
+            Canvas newSelectionOverlay = newImageTab.getSelectionOverlay();
+
+            ShapeManager newShapeManager = new ShapeManager(newGc);
+            DrawingManager newDrawingManager = new DrawingManager(newGc);
+
+            setupTabHandlers(
+                newCanvas,
+                newGc,
+                newSelectionOverlay,
+                newShapeManager,
+                newDrawingManager,
+                newImageTab.getImageView(),
+                toolSelector,
+                colorPicker,
+                lineWidth,
+                lineStyleSelector
+            );
+
             newTab.setContent(
                 newImageTab.getScrollPane()
             );
 
             tabPane.getTabs().add(newTab);
+
+            tabImageViews.put(newTab, newImageTab.getImageView());
+            tabCanvases.put(newTab, newCanvas);
+            tabSelectionOverlays.put(newTab, newSelectionOverlay);
+            tabDrawingAreas.put(newTab, newImageTab.getDrawingArea());
 
             tabPane.getSelectionModel().select(newTab);
         });
@@ -633,8 +1037,8 @@ public class JoesPaint extends Application {
         Label colorLabel = new Label("Color: #000000");
 
         /**
-         * Updates the color label whenever the selected color changes.
-         * The color is displayed as a hexadecimal RGB value.
+         * this updates the color label whenever the selected color changes.
+         * color is displayed as a hexadecimal RGB value.
          */
         colorPicker.valueProperty().addListener(
             (obs, oldColor, newColor) -> {
@@ -650,44 +1054,401 @@ public class JoesPaint extends Application {
             }
         );
 
-        // setup for outside the window
-        VBox root = new VBox();
 
-        //layout stuff
-        VBox.setVgrow(
-            tabPane,
-            Priority.ALWAYS
-        );
+        // layout stuff
+        HBox toolbar = new HBox(10);
+        toolbar.setPadding(new Insets(8, 12, 8, 12));
+        toolbar.setAlignment(Pos.CENTER_LEFT);
+        toolbar.getStyleClass().add("toolbar");
 
-        root.getChildren().addAll(
-            menuBar,
+        Label toolLabel = new Label("Tool:");
+        Label colorControlLabel = new Label("Color:");
+        Label styleLabel = new Label("Style:");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
+
+        toolbar.getChildren().addAll(
+            toolLabel,
+            toolSelector,
+            colorControlLabel,
             colorPicker,
             colorLabel,
-            toolSelector,
+            styleLabel,
             lineStyleSelector,
             lineWidthLabel,
             lineWidth,
-            addTabButton,
-            tabPane
+            spacer,
+            addTabButton
         );
+
+        //made it where the menu stays ontop, drawing is below this
+        VBox topArea = new VBox(menuBar, toolbar);
+
+        root.setTop(topArea);
+        root.setCenter(tabPane);
 
         Scene scene = new Scene(
             root,
             1000,
             750
         );
+        scene.getStylesheets().add(
+            getClass().getResource("style.css").toExternalForm()
+        );
 
         stage.setTitle("Joes' Pain(t)");
         stage.setScene(scene);
         stage.show();
+        
+        webserver = new Webserver(tabPane, tabDrawingAreas);
+    try {
+        webserver.start();
+    } catch (java.io.IOException e) {
+        System.err.println("Could not start web server: " + e.getMessage());
     }
 
-    /**
-     * Main entry point for the Joes' Pain(t) application.
-     *
-     * @param args command-line arguments passed to the application
-     */
-    public static void main(String[] args) {
-        launch(args);
+        //autosave stuffs this keeps backups
+        autoSave = new AutoSave(tabDrawingAreas, fileManager);
+        autoSave.start();
     }
+
+    private void drawSelection(
+        GraphicsContext gc,
+        double startX,
+        double startY,
+        double endX,
+        double endY
+) {
+    double x = Math.min(startX, endX);
+    double y = Math.min(startY, endY);
+
+    double width = Math.abs(endX - startX);
+    double height = Math.abs(endY - startY);
+
+    gc.setLineDashes(5);
+    gc.strokeRect(x, y, width, height);
+    gc.setLineDashes(0);
+    }
+    private WritableImage copySelection(
+        StackPane drawingArea,
+        Canvas selectionOverlay,
+        double startX,
+        double startY,
+        double endX,
+        double endY
+) {
+    double x = Math.min(startX, endX);
+    double y = Math.min(startY, endY);
+
+    double width = Math.abs(endX - startX);
+    double height = Math.abs(endY - startY);
+
+    if (width <= 0 || height <= 0) {
+        return null;
+    }
+
+    selectionOverlay.setVisible(false);
+
+    SnapshotParameters params = new SnapshotParameters();
+
+    params.setViewport(
+        new Rectangle2D(
+            x,
+            y,
+            width,
+            height
+        )
+    );
+
+    WritableImage image = new WritableImage(
+        (int) Math.ceil(width),
+        (int) Math.ceil(height)
+    );
+
+    drawingArea.snapshot(
+        params,
+        image
+    );
+
+    selectionOverlay.setVisible(true);
+
+    return image;
+}
+
+/**
+ * this shows a warning when saving in a format other than PNG.
+ * JPG can reduce image quality and does not preserve transparency;
+ * BMP may also fail to preserve transparency. PNG remains the default.
+ *
+ * @param format the selected image format
+ * @return true if the user chooses to continue saving
+ */
+private boolean confirmAlternativeFormat(String format) {
+    if (format == null || format.equalsIgnoreCase("png")) {
+        return true;
+    }
+
+    Alert warning = new Alert(Alert.AlertType.CONFIRMATION);
+    warning.setTitle("Alternative Format Warning");
+    warning.setHeaderText("Some image information may be lost");
+    warning.setContentText(
+        "You are saving as " + format.toUpperCase() + ".\n\n"
+        + "JPG may reduce image quality and does not support transparency. "
+        + "Other formats may not preserve every image feature.\n\n"
+        + "Do you want to continue saving?"
+    );
+    warning.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
+
+    Optional<ButtonType> result = warning.showAndWait();
+    return result.isPresent() && result.get() == ButtonType.YES;
+}
+
+/**
+ * main entry point for the Joes' Pain(t) application.
+ *
+ * @param args command-line arguments passed to the application
+ */
+public static void main(String[] args) {
+    launch(args);
+}
+        /**
+         * this gives an additional ImageTab the same drawing behavior as
+         * the original canvas. This keeps the tab requirement usable
+         * without changing the existing drawing architecture.
+         */
+        private void setupTabHandlers(
+                Canvas canvas,
+                GraphicsContext gc,
+                Canvas selectionOverlay,
+                ShapeManager shapeManager,
+                DrawingManager drawingManager,
+                ImageView imageView,
+                ComboBox<String> toolSelector,
+                ColorPicker colorPicker,
+                Slider lineWidth,
+                ComboBox<String> lineStyleSelector) {
+
+            canvas.setOnMousePressed(e -> {
+                startX = e.getX();
+                startY = e.getY();
+                pencilUndoSaved = false;
+
+                if (pasteMode && copiedImage != null) {
+                    undoRedoManager.saveUndoState(canvas);
+                    gc.drawImage(copiedImage, e.getX(), e.getY());
+                    pasteMode = false;
+                    selectionOverlay.getGraphicsContext2D().clearRect(
+                        0, 0, selectionOverlay.getWidth(), selectionOverlay.getHeight()
+                    );
+                    unsavedChanges = true;
+                    return;
+                }
+
+                if (toolSelector.getValue().equals("Select")) {
+                    selectionStartX = e.getX();
+                    selectionStartY = e.getY();
+                    selectionEndX = e.getX();
+                    selectionEndY = e.getY();
+                }
+
+                if (toolSelector.getValue().equals("Color Grabber")) {
+                    WritableImage snapshot = canvas.snapshot(
+                        new SnapshotParameters(), null
+                    );
+                    PixelReader pixelReader = snapshot.getPixelReader();
+                    Color grabbedColor = pixelReader.getColor(
+                        (int) e.getX(), (int) e.getY()
+                    );
+                    colorPicker.setValue(grabbedColor);
+                }
+
+                if (toolSelector.getValue().equals("Text")) {
+                    TextInputDialog textDialog = new TextInputDialog();
+                    textDialog.setTitle("Add Text");
+                    textDialog.setHeaderText("Enter text to add to the image:");
+                    textDialog.setContentText("Text:");
+
+                    Optional<String> result = textDialog.showAndWait();
+                    if (result.isPresent() && !result.get().isEmpty()) {
+                        undoRedoManager.saveUndoState(canvas);
+                        gc.setFill(colorPicker.getValue());
+                        gc.fillText(result.get(), e.getX(), e.getY());
+                        unsavedChanges = true;
+                    }
+                }
+            });
+
+            canvas.setOnMouseDragged(e -> {
+                if (toolSelector.getValue().equals("Select")) {
+                    selectionEndX = e.getX();
+                    selectionEndY = e.getY();
+                    GraphicsContext selectionGc = selectionOverlay.getGraphicsContext2D();
+                    selectionGc.clearRect(
+                        0, 0, selectionOverlay.getWidth(), selectionOverlay.getHeight()
+                    );
+                    drawSelection(
+                        selectionGc,
+                        selectionStartX,
+                        selectionStartY,
+                        selectionEndX,
+                        selectionEndY
+                    );
+                }
+
+                if (toolSelector.getValue().equals("Pencil")) {
+                    if (!pencilUndoSaved) {
+                        undoRedoManager.saveUndoState(canvas);
+                        pencilUndoSaved = true;
+                    }
+                    gc.setStroke(colorPicker.getValue());
+                    drawingManager.drawPencil(
+                        startX, startY, e.getX(), e.getY()
+                    );
+                    startX = e.getX();
+                    startY = e.getY();
+                    unsavedChanges = true;
+                }
+            });
+
+            canvas.setOnMouseReleased(e -> {
+                gc.setStroke(colorPicker.getValue());
+                gc.setLineWidth(lineWidth.getValue());
+
+                if (lineStyleSelector.getValue().equals("Dashed")) {
+                    gc.setLineDashes(30, 15);
+                } else {
+                    gc.setLineDashes(null);
+                }
+
+                String selectedTool = toolSelector.getValue();
+
+                if (!selectedTool.equals("Color Grabber")
+                        && !selectedTool.equals("Pencil")
+                        && !selectedTool.equals("Text")
+                        && !selectedTool.equals("Select")) {
+                    undoRedoManager.saveUndoState(canvas);
+                }
+
+                if (selectedTool.equals("Line")) {
+                    gc.strokeLine(startX, startY, e.getX(), e.getY());
+                } else if (selectedTool.equals("Rectangle")) {
+                    shapeManager.drawRectangle(
+                        startX, startY,
+                        e.getX() - startX,
+                        e.getY() - startY
+                    );
+                } else if (selectedTool.equals("Square")) {
+                    shapeManager.drawSquare(
+                        startX, startY,
+                        Math.min(
+                            Math.abs(e.getX() - startX),
+                            Math.abs(e.getY() - startY)
+                        )
+                    );
+                } else if (selectedTool.equals("Ellipse")) {
+                    shapeManager.drawEllipse(
+                        startX, startY,
+                        e.getX() - startX,
+                        e.getY() - startY
+                    );
+                } else if (selectedTool.equals("Circle")) {
+                    shapeManager.drawCircle(
+                        startX, startY,
+                        Math.min(
+                            Math.abs(e.getX() - startX),
+                            Math.abs(e.getY() - startY)
+                        )
+                    );
+                } else if (selectedTool.equals("Triangle")) {
+                    shapeManager.drawTriangle(
+                        startX, startY, e.getX(), e.getY()
+                    );
+                } else if (selectedTool.equals("Right Triangle")) {
+                    shapeManager.drawRightTriangle(
+                        startX, startY, e.getX(), e.getY()
+                    );
+                } else if (selectedTool.equals("Polygon")) {
+                    TextInputDialog polygonDialog = new TextInputDialog("5");
+                    polygonDialog.setTitle("Polygon");
+                    polygonDialog.setHeaderText("Enter the number of sides:");
+                    polygonDialog.setContentText("Sides:");
+
+                    Optional<String> result = polygonDialog.showAndWait();
+                    if (result.isPresent()) {
+                        try {
+                            int sides = Integer.parseInt(result.get());
+                            if (sides >= 3) {
+                                polygonSides = sides;
+                                double centerX = (startX + e.getX()) / 2;
+                                double centerY = (startY + e.getY()) / 2;
+                                double radius = Math.min(
+                                    Math.abs(e.getX() - startX),
+                                    Math.abs(e.getY() - startY)
+                                ) / 2;
+                                shapeManager.drawPolygon(
+                                    centerX, centerY, radius, polygonSides
+                                );
+                            } else {
+                                Alert alert = new Alert(Alert.AlertType.WARNING);
+                                alert.setTitle("Invalid Polygon");
+                                alert.setHeaderText(null);
+                                alert.setContentText(
+                                    "A polygon must have at least 3 sides."
+                                );
+                                alert.showAndWait();
+                            }
+                        } catch (NumberFormatException ex) {
+                            Alert alert = new Alert(Alert.AlertType.WARNING);
+                            alert.setTitle("Invalid Number");
+                            alert.setHeaderText(null);
+                            alert.setContentText(
+                                "Please enter a whole number."
+                            );
+                            alert.showAndWait();
+                        }
+                    }
+                } else if (selectedTool.equals("Star")) {
+                    TextInputDialog starDialog = new TextInputDialog("5");
+                    starDialog.setTitle("Star Points");
+                    starDialog.setHeaderText("Choose the number of star points");
+                    starDialog.setContentText("Points (4 or more):");
+
+                    Optional<String> result = starDialog.showAndWait();
+                    if (result.isPresent()) {
+                        try {
+                            int points = Integer.parseInt(result.get());
+                            if (points >= 4) {
+                                double centerX = (startX + e.getX()) / 2;
+                                double centerY = (startY + e.getY()) / 2;
+                                double radius = Math.min(
+                                    Math.abs(e.getX() - startX),
+                                    Math.abs(e.getY() - startY)
+                                ) / 2;
+                                shapeManager.drawStar(
+                                    centerX, centerY, radius, points
+                                );
+                            } else {
+                                Alert alert = new Alert(Alert.AlertType.WARNING);
+                                alert.setTitle("Invalid Star");
+                                alert.setHeaderText(null);
+                                alert.setContentText(
+                                    "A star must have at least 4 points."
+                                );
+                                alert.showAndWait();
+                            }
+                        } catch (NumberFormatException ex) {
+                            Alert alert = new Alert(Alert.AlertType.WARNING);
+                            alert.setTitle("Invalid Number");
+                            alert.setHeaderText(null);
+                            alert.setContentText("Please enter a whole number.");
+                            alert.showAndWait();
+                        }
+                    }
+                }
+
+                unsavedChanges = true;
+            });
+        }
+
 }
