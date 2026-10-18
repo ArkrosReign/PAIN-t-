@@ -1,0 +1,145 @@
+/* Joes' Pain(t) - This handles the styling of the application. */
+
+.root {
+    -fx-font-family: "System";
+    -fx-font-size: 14px;
+    -fx-background-color: #eeeeee;
+}
+
+//menu bar
+.menu-bar {
+    -fx-background-color: #2b2b2b;
+}
+
+.menu-bar .label {
+    -fx-text-fill: white;
+}
+
+.menu:hover,
+.menu:showing {
+    -fx-background-color: #444444;
+}
+
+.menu-item {
+    -fx-background-color: #333333;
+}
+
+.menu-item .label {
+    -fx-text-fill: white;
+}
+
+.menu-item:hover {
+    -fx-background-color: #555555;
+}
+//buttons
+.button {
+    -fx-background-color: #444444;
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-padding: 7px 14px;
+    -fx-background-radius: 5px;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-background-color: #555555;
+}
+
+.button:pressed {
+    -fx-background-color: #333333;
+}
+//combo boxes
+
+.combo-box {
+    -fx-background-color: white;
+    -fx-border-color: #bbbbbb;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+}
+
+.combo-box:hover {
+    -fx-border-color: #777777;
+}
+
+.combo-box .list-cell {
+    -fx-padding: 5px 8px;
+}
+
+//colorpicker 
+.color-picker {
+    -fx-background-color: white;
+    -fx-border-color: #bbbbbb;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+}
+
+//labels
+.label {
+    -fx-text-fill: #222222;
+}
+
+.slider .track {
+    -fx-background-color: #bbbbbb;
+}
+
+.slider .thumb {
+    -fx-background-color: #444444;
+}
+
+.slider .thumb:hover {
+    -fx-background-color: #666666;
+}
+
+//tabs
+.tab-pane {
+    -fx-background-color: #dcdcdc;
+}
+
+.tab-pane .tab-header-area {
+    -fx-background-color: #cfcfcf;
+}
+
+.tab {
+    -fx-background-color: #bdbdbd;
+    -fx-padding: 6px 14px;
+}
+
+.tab .tab-label {
+    -fx-text-fill: #333333;
+}
+
+.tab:selected {
+    -fx-background-color: white;
+}
+
+.tab:selected .tab-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #111111;
+}
+
+.scroll-pane {
+    -fx-background-color: #b8b8b8;
+}
+
+.scroll-pane .viewport {
+    -fx-background-color: #b8b8b8;
+}
+
+.text-field {
+    -fx-background-color: white;
+    -fx-border-color: #bbbbbb;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 6px;
+}
+
+.text-field:focused {
+    -fx-border-color: #666666;
+}
+
+.tooltip {
+    -fx-background-color: #333333;
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-padding: 6px 9px;
+}
