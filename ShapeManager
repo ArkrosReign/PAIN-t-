@@ -3,9 +3,9 @@ package com.mycompany.mavenproject1;
 import javafx.scene.canvas.GraphicsContext;
 
 /**
- * This class the drawing of basic geometric shapes on a canvas.
+ * ShapeManager well manages the drawing of basic geometric shapes on a canvas.
  *
- * SM uses a GraphicsContext to draw rectangles, squares, ellipses,
+ * Uses a GraphicsContext to draw rectangles, squares, ellipses,
  * circles, triangles, and regular polygons.
  */
 public class ShapeManager {
@@ -13,7 +13,7 @@ public class ShapeManager {
     private GraphicsContext gc;
 
     /**
-     * Creates a ShapeManager using the provided GraphicsContext.
+     * Creates a SM using the provided GraphicsContext.
      *
      * @param gc the GraphicsContext used to draw the shapes
      */
