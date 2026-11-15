@@ -7,7 +7,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
 
 /**
- * This is the one image workspace in Joes' Pain(t).
+ * Represents one image workspace in Joes' Pain(t).
  */
 public class ImageTab {
 
@@ -17,7 +17,7 @@ public class ImageTab {
     private final StackPane drawingArea;
     private final ScrollPane scrollPane;
 
-    /** Creates a blank image workspace. */
+    /* Creates a blank (i love that song) image workspace. */
     public ImageTab() {
         imageView = new ImageView();
         imageView.setMouseTransparent(true);
