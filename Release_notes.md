@@ -1,101 +1,74 @@
-My lovely PAIN(t) - 09/10/26
+My Lovely PAIN(t) — Release Notes
+---
 
-First update - 09/08/26, 12:24 AM CST
+Update #1 — September 8, 2026 | 12:24 AM CST
 
-Some features I added
-- Added the main class files for ImageManager.java and JoesPaint with JP (shortened) acting as the main class
-- Added the override for the main class and development would begin! (please ignore the comments of me crashing out)
+- Added the main class files for `ImageManager.java` and `JoesPaint`, with JP (shortened) acting as the main class.
+- Added the override for the main class and development would begin!
 
-Update #2 - 09/10/26, 10:52 AM CST
+> Please ignore the comments of me crashing out.
 
-- Added the needed Javafx imports for Stage, Menubar, Menu, and Menuitem
-- Created the menubar and filemenu
-- added the open, save, save as, and exit menu options
-- added the menu options when u press the file button 
-> Open
-> Save
-> Save As
-> Exit 
-- Added the file menu to the menubar
-- Added the scene and Vbox layout 
+Update #2 — September 10, 2026 | 10:52 AM CST
 
-Note: I will admit, I was fighting NetBeans for 10 minutes just to realize was trying to run what I had for lab 1
+- Added the needed JavaFX imports for `Stage`, `MenuBar`, `Menu`, and `MenuItem`.
+- Created the MenuBar and File menu.
+- Added the following File menu options:
+  - Open
+  - Save
+  - Save As
+  - Exit
+- Added the File menu to the MenuBar.
+- Added the Scene and VBox layout.
 
-Update #3 09/10/26, 2:06 PM CST
+**Note:** I will admit, I was fighting NetBeans for 10 minutes just to realize I was trying to run what I had for Lab 1.
 
-- During a test run, the project was opening what I had set for lab 1 instead of the current project, this was fixed by changing the run configs in project settings and using javafx:run
-- Updated the exit button where if you press it the window will close
-- Added the open functionality using Oracle's filechooser documentation as a reference
-- Open now allows the user to select an image file and display through ImageView
-- Encountered a issue where ImageView was declared in a different block which it couldn't be accessed by the open function. Fixed this by declaring ImageView before the open action
-- Added the needed image imports and filechooser settings to allow image files to be opened
-- Added the functionality (this took SO LONG), allowing the displayed image to be saved as a png file
-- Added the necessary image conversion and saving by using Writableimage, SwingFXUtils, BufferedImage, and ImageIO
-- Encountered another issue where BufferedImage was not recognized and despite already having the import. This was fixed by adjusting the dependencies to the Maven project folder 
-- Finished implementing both Save and Save As
+Update #3 — September 10, 2026 | 2:06 PM CST
 
-Some issues ive taken note of: (only 1, the issues ive noted before were fixed)
-- Save doesn't do anything without no image loaded
-- When loading some images parts of an image can be cropped out like you see with the cat brick or one where it only decided to show another cats ear only 😭
+- Fixed the project run configuration, which was opening the Lab 1 project instead of the current project. Resolved by changing the run configurations and using `javafx:run`.
+- Updated the Exit button so the application window closes when selected.
+- Implemented Open functionality using Oracle's FileChooser documentation as a reference.
+- Users can now select an image file and display it through `ImageView`.
+- Fixed an accessibility issue by declaring `ImageView` before the Open action.
+- Added the necessary image imports and FileChooser settings.
+- Implemented image saving as PNG.
+- Added image conversion and saving using:
+  - `WritableImage`
+  - `SwingFXUtils`
+  - `BufferedImage`
+  - `ImageIO`
+- Fixed a `BufferedImage` dependency recognition issue by adjusting the Maven project dependencies.
+- Finished implementing Save and Save As.
 
+**Known Issues at the Time:**
 
-Note: For reference I used Oracle documentation like a few was SwingFXUtils, Writableimage, and ImageView to name a few to help me with this assignment
+- Save did not do anything when no image was loaded.
+- Some images displayed incorrectly or had portions cropped out, including the infamous cat brick and the image that decided to show only another cat's ear. 😭
 
-Update #4 9/13/26, 9:38 PM CST
-- Added a feature where when you save, you will receive a popup saying the file has been saved
-- Also said popup displays file name for confirmation
+**References:** Oracle documentation, including `SwingFXUtils`, `WritableImage`, and `ImageView`.
 
-Update #5 9/18/26, 11:03 PM EST
-- added a help button in menubar which includes the help and about button
-- added a colorpicker
+Update #4 — September 13, 2026 | 9:38 PM CST
 
-Update #6 9/20/26, 11:29 AM EST (airport coding time)
-- added smartsave where the app will warn the user if they try to exit without saving
-- added the ability to draw a line
+**Save Confirmation**
 
-Update #7 9/21/26, 12:34 PM EST
-- added jpeg, png, and bmp support
+- Added a popup notification when a file is saved.
+- The notification displays the file name for confirmation.
 
-Update #8 9/21/26, 10:23 AM CST 
-- Added the ability to draw lines on a image that is open
-- Now you can open a image and freely draw lines on, save it and open it again and it will remain there
-- When you open a image larger than 800x500 it will cover the colorpicker on the top
+### Update #5 — September 18, 2026 | 11:03 PM EST
 
-SPRINT #2 KNOWN ISSUES
-- When I open certain images it can block the color picker + scale (FIXED)
-- Drawing lines then opening the image will not show up while on a blank canvas i can (FIXED, had to rewrite the stackpane function cus it was extend only drawing lines on the bottom)
-- colorpicker gets blocked when opening a larger image
+**Interface Improvements**
 
-Update #9 9/23/26, 5:43 PM CST
-- Added Javadoc documentation
-- Added a adjuster where you can adjust the line to 1-20px
-- Added a line width label that displays the current width
-- Added a color picker for well picking colors
-- Added a label for what color you choose in a hexadecimal format
-- Added a color grabber tool for a selecting a color directly from the canvas
-- Added a pencil for freehand drawing 
+- Added a Help button to the MenuBar.
+- Added Help and About options.
+- Added a ColorPicker.
 
-Update #10 9/23/26, 11:01 PM CST
-- Added shapes for drawing
-- Added the option to pick solid or dashed lines
-- Added support for multiple img tabs
-- Added a pun in the java about
-- Added more a file for drawing and shape for organization
-- Added a "imagetab" to help organize the workshop
+### Update #6 — September 20, 2026 | 11:29 AM EST
 
-SPRINT #3 Known Issues (Fixed)
-- the screen shaking when you draw
-- Opening a image and it blocks colorpicker + scale
+**Drawing Functionality**
 
-ISSUES HAVE YET TO BE FIXED
-- Additional img tabs can be created but drawing only works on the main tab
-- Drawing does not work on a additional drawing tab
+- Added SmartSave, warning users if they attempt to exit without saving.
+- Added the ability to draw lines.
 
-Update #11 9/28/26, 10:01 PM CST
-- Added a clear confirmation when you wish to clear a canvas
-- Added the ability to add text to canvas
-- Added more shapes (right triangle)
+### Update #7 — September 21, 2026
 
-Update #12 10/1/26, 12:47 AM CST
-- added the polygon shape but javafx asks for how many sides u wish to draw
-- Added the undo/redo button
+**Image Format Support**
+
