@@ -14,15 +14,15 @@ import java.io.IOException;
 import javax.imageio.ImageIO;
 
 /**
- * FM handles opening and saving image files for Joes' Pain(t).
+ * Handles opening and saving image files for Joes' Pain(t).
  *
- * FM class keeps file input/output code separate from the main
+ * This class keeps file input/output code separate from the main
  * application class. It supports PNG, JPG/JPEG, and BMP images.
  */
 public class FileManager {
 
     /**
-     * this creates a file chooser for opening supported image files.
+     * Creates a file chooser for opening supported image files.
      *
      * @return a configured open-file chooser
      */
@@ -44,7 +44,7 @@ public class FileManager {
     }
 
     /**
-     * this opens a file chooser and lets the user select an image.
+     * Opens a file chooser and lets the user select an image.
      *
      * @param stage the application window used by the chooser
      * @return the selected file, or null if the user cancels
@@ -54,7 +54,7 @@ public class FileManager {
     }
 
     /**
-     * this creates a file chooser for saving an image.
+     * Creates a file chooser for saving an image.
      *
      * @return a configured save-file chooser
      */
@@ -76,7 +76,7 @@ public class FileManager {
     }
 
     /**
-     * this loads an image from a file.
+     * Loads an image from a file.
      *
      * @param file the image file to load
      * @return the loaded image, or null if loading fails
@@ -89,14 +89,14 @@ public class FileManager {
         return new Image(file.toURI().toString());
     }
 
-    /**
-     * FM saves a drawing area to an image file.
-     *
-     * @param drawingArea the drawing area containing the image
-     * @param file the destination file
-     * @param format the image format, such as png, jpg, or bmp
-     * @throws IOException if the image cannot be written
-     */
+/**
+ * Saves a drawing area to an image file.
+ *
+ * @param drawingArea the drawing area containing the image
+ * @param file the destination file
+ * @param format the image format, such as png, jpg, or bmp
+ * @return true if the image was saved successfully, otherwise false
+ */
     public boolean saveImage(
         StackPane drawingArea,
         File file,
@@ -119,7 +119,8 @@ public class FileManager {
             if (normalizedFormat.equals("jpeg")) {
                 normalizedFormat = "jpg";
             }
-
+            //jpeg does not support transparency, SO WE MAKE THE BACKGROUND WHITE!
+            //i legit just learned this as jpegs are made to store images efficiently, not so much for transparent images
             if (normalizedFormat.equals("jpg")) {
                 BufferedImage rgbImage = new BufferedImage(
                     bufferedImage.getWidth(),
@@ -162,7 +163,7 @@ public class FileManager {
     }
 
     /**
-     * FM verifies the destination filename uses the extension for the selected format.
+     * Ensures the destination filename uses the extension for the selected format.
      * For example, saving as JPG changes "drawing.png" to "drawing.jpg".
      *
      * @param file selected destination file
@@ -194,7 +195,7 @@ public class FileManager {
     }
 
     /**
-     * FM determines an image format from a selected file.
+     * Determines an image format from a selected file.
      *
      * @param file the image file
      * @return the format name, defaulting to png when no supported
@@ -217,7 +218,7 @@ public class FileManager {
     }
 
     /**
-     * FM determines the image format represented by a file chooser filter.
+     * Determines the image format represented by a file chooser filter.
      *
      * @param filter the selected file chooser extension filter
      * @return the corresponding format name
