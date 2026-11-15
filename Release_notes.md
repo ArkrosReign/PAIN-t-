@@ -154,5 +154,9 @@ The final application includes:
 - Application activity logging.
 - Javadoc documentation.
 
+### Additional Dev. Notes 
+
+During development, the original `ImageManager.java` was repurposed as the project evolved. It's purpose was reorganized into the dedicated manager classes used in the final version you see now which includes: FileManager, DrawingManager, and ShapeManager.  
+
 **Final Notes:** This project was developed using JavaFX and Maven. Oracle documentation was used as a reference during development, particularly for JavaFX image handling and related functionality.
 
