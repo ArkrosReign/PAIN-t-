@@ -1,3 +1,4 @@
+
 package com.mycompany.mavenproject1;
 
 import javafx.scene.canvas.GraphicsContext;
@@ -5,8 +6,8 @@ import javafx.scene.canvas.GraphicsContext;
 /**
  * Manages freehand drawing operations on the canvas.
  *
- * Uses a GraphicsContext to draw the individual line segments
- * needed to create pencil-style drawing.
+ * Uses a GraphicsContext to draw pencil strokes and erase
+ * portions of the canvas.
  */
 public class DrawingManager {
 
@@ -24,9 +25,6 @@ public class DrawingManager {
     /**
      * Draws a line segment between two points.
      *
-     * This method is used repeatedly while the mouse is being
-     * dragged to create a continuous pencil-style line.
-     *
      * @param startX the starting x-coordinate
      * @param startY the starting y-coordinate
      * @param endX the ending x-coordinate
@@ -38,11 +36,22 @@ public class DrawingManager {
         double endX,
         double endY
     ) {
-        gc.strokeLine(
-            startX,
-            startY,
-            endX,
-            endY
+        gc.strokeLine(startX, startY, endX, endY);
+    }
+
+    /**
+     * Erases a circular area around the specified point.
+     *
+     * @param x the center x-coordinate
+     * @param y the center y-coordinate
+     * @param size the diameter of the eraser
+     */
+    public void erase(double x, double y, double size) {
+        gc.clearRect(
+            x - size / 2,
+            y - size / 2,
+            size,
+            size
         );
     }
 }
