@@ -19,6 +19,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.CheckBox;
 
 // for image display
 import javafx.scene.image.Image;
@@ -27,9 +28,6 @@ import javafx.scene.image.ImageView;
 // for saving
 import javafx.scene.SnapshotParameters;
 import javafx.scene.image.WritableImage;
-
-// now for more saving galore
-// File handling is provided by FileManager.
 import java.io.IOException;
 import java.io.File;
 
@@ -63,8 +61,8 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.Button;
 
-// layout
-
+//tooltips
+import javafx.scene.control.Tooltip;
 
 /**
  * Main application class for Pain(t).
@@ -80,6 +78,7 @@ public class JoesPaint extends Application {
     private FileManager fileManager = new FileManager();
     private AutoSave autoSave;
     private Webserver webserver;
+    private UserLogger userLogger = new UserLogger();
 
     private Map<Tab, ImageView> tabImageViews = new HashMap<>();
     private Map<Tab, Canvas> tabCanvases = new HashMap<>();
@@ -99,52 +98,51 @@ public class JoesPaint extends Application {
     
     Canvas selectionOverlay;
     boolean pasteMode = false;
-
-WritableImage copiedImage = null;
+    WritableImage copiedImage = null;
     
-
     /**
-     * starts the application and sets up the
-     * menus, drawing tools, image display, saving options,
-     * and tabbed workspace.
-     *
-     * @param stage the main window used by the application
-     */
+    * Starts the application and sets up the menus, drawing tools,
+    * image display, saving options, and tabbed workspace.
+    *
+    * @param stage the main window used by the application
+    */
     @Override
     public void start(Stage stage) {
-
         /**
          * this checks for unsaved changes before closing the application
          * and asks the user if they want to close without saving.
          */
-        stage.setOnCloseRequest(e -> { // smart save :p
+ stage.setOnCloseRequest(e -> {
+    System.out.println("Window close requested!");
+    System.out.println("Unsaved changes: " + unsavedChanges);
 
-            if (unsavedChanges) {
+    if (unsavedChanges) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Unsaved Changes");
+        alert.setHeaderText("You have unsaved changes.");
+        alert.setContentText(
+            "Are you sure you want to close without saving?"
+        );
 
-                Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-                alert.setTitle("Unsaved Changes");
-                alert.setHeaderText("You have unsaved changes.");
-                alert.setContentText(
-                    "Are you sure you want to close without saving?"
-                );
+        Optional<ButtonType> result = alert.showAndWait();
 
-                Optional<ButtonType> result = alert.showAndWait();
-
-                if (result.isPresent() && result.get() == ButtonType.OK) {
-
-                } else {
-                    e.consume();
-                }
-            }
-        });
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+        } else {
+            e.consume();
+        }
+    }
+});
 
         stage.setOnHidden(e -> {
             if (autoSave != null) {
                 autoSave.stop();
             }
-        if (webserver != null) {
-            webserver.stop();
-    }
+            if (webserver != null) {
+                webserver.stop();
+            }
+            if (userLogger != null) {
+                userLogger.shutdown();
+            }
         });
 
         // setup for outside the window
@@ -152,20 +150,58 @@ WritableImage copiedImage = null;
 
         // basically make the menu then file
         MenuBar menuBar = new MenuBar();
-        Menu fileMenu = new Menu("File");
+        Menu fileMenu = new Menu("File");     
+        Menu transformMenu = new Menu("Transform");
+
+        // rotation stuffs for the menu
+        MenuItem rotate90Item = new MenuItem("Rotate 90° Clockwise");
+        MenuItem rotate180Item = new MenuItem("Rotate 180°");
+        MenuItem rotate270Item = new MenuItem("Rotate 270° Clockwise");
+
+        transformMenu.getItems().addAll(
+            rotate90Item,
+            rotate180Item,
+            rotate270Item
+);
 
         // menu options
         MenuItem openItem = new MenuItem("Open");
         MenuItem saveItem = new MenuItem("Save");
-        MenuItem saveAsItem = new MenuItem("Save As");
+        MenuItem saveAsItem = new MenuItem("Save As");      
         MenuItem undoItem = new MenuItem("Undo");
         MenuItem redoItem = new MenuItem("Redo");
         MenuItem copyItem = new MenuItem("Copy");
         MenuItem pasteItem = new MenuItem("Paste");
         MenuItem clearItem = new MenuItem("Clear");
         MenuItem exitItem = new MenuItem("Exit");
-
-        saveItem.setAccelerator( //for key shortcut, aka save
+        MenuItem selectionItem = new MenuItem("Select");
+        
+        saveAsItem.setAccelerator( //for save as 
+            new KeyCodeCombination(
+                KeyCode.S,
+                KeyCombination.CONTROL_DOWN,
+                KeyCombination.SHIFT_DOWN
+    )
+);
+        copyItem.setAccelerator( //copy 
+            new KeyCodeCombination(
+                KeyCode.C,
+                KeyCombination.CONTROL_DOWN
+    )
+);
+        pasteItem.setAccelerator( //paste
+            new KeyCodeCombination(
+            KeyCode.V,
+            KeyCombination.CONTROL_DOWN
+    )
+);
+        selectionItem.setAccelerator( // select
+            new KeyCodeCombination(
+            KeyCode.R,
+            KeyCombination.CONTROL_DOWN
+    )
+);
+        saveItem.setAccelerator( // for key shortcut, aka save
             new KeyCodeCombination(
                 KeyCode.S,
                 KeyCombination.SHORTCUT_DOWN
@@ -181,11 +217,10 @@ WritableImage copiedImage = null;
         helpMenu.getItems().addAll(helpItem, aboutItem);
 
         // add both menus to the menu bar
-        menuBar.getMenus().addAll(fileMenu, helpMenu);
+        menuBar.getMenus().addAll(fileMenu, transformMenu, helpMenu);
         
-
         /**
-         * shows basic instructions for using the application.
+         * Displays basic instructions for using the application.
          */
         helpItem.setOnAction(e -> {
 
@@ -223,8 +258,6 @@ WritableImage copiedImage = null;
          * Creates the ImageView used to display the currently opened image.
          */
         ImageView imageView = new ImageView();
-
-        // fix for lines not drawing on a image, SPRINT #2
         imageView.setMouseTransparent(true);
 
         /**
@@ -243,16 +276,20 @@ WritableImage copiedImage = null;
 
         // for the line width slider
         Slider lineWidth = new Slider(1, 20, 5);
+        lineWidth.setTooltip(
+            new Tooltip("Adjust the drawing line width")
+        );
+        
         Label lineWidthLabel = new Label("Line Width: 5 px");
 
         // tool selector
         ComboBox<String> toolSelector = new ComboBox<>();
-
         toolSelector.getItems().addAll(
             "Line",
             "Rectangle",
             "Select",
             "Pencil",
+            "Eraser",
             "Text",
             "Color Grabber",
             "Square",
@@ -266,6 +303,10 @@ WritableImage copiedImage = null;
 
         toolSelector.setValue("Line");
         toolSelector.setPrefWidth(120);
+        
+        toolSelector.setTooltip(
+            new Tooltip("Choose a drawing tool")
+    );
 
         // line style selector
         ComboBox<String> lineStyleSelector = new ComboBox<>();
@@ -277,9 +318,17 @@ WritableImage copiedImage = null;
 
         lineStyleSelector.setValue("Solid");
         lineStyleSelector.setPrefWidth(120);
+        
+        lineStyleSelector.setTooltip(
+            new Tooltip("Choose solid or dashed lines")
+        );
 
         // color picker
         ColorPicker colorPicker = new ColorPicker();
+        
+        colorPicker.setTooltip(
+            new Tooltip("Choose the drawing color")
+        );
 
         lineWidth.valueProperty().addListener((obs, oldValue, newValue) -> {
             lineWidthLabel.setText(
@@ -307,8 +356,8 @@ WritableImage copiedImage = null;
         scrollPane.setPannable(true);
 
         /**
-         * records the starting mouse position for drawing tools.
-         * if the Color Grabber is selected, the clicked pixel color
+         * Records the starting mouse position for drawing tools.
+         * If the Color Grabber is selected, the clicked pixel color
          * is also retrieved and placed into the color picker.
          */
         canvas.setOnMousePressed(e -> {
@@ -318,7 +367,7 @@ WritableImage copiedImage = null;
             pencilUndoSaved = false;
             
             if (pasteMode && copiedImage != null) {
-
+                
         undoRedoManager.saveUndoState(canvas);
 
         gc.drawImage(
@@ -339,14 +388,14 @@ WritableImage copiedImage = null;
         unsavedChanges = true;
 
         return;
-    }
+        }
             
             if (toolSelector.getValue().equals("Select")) {
                 selectionStartX = e.getX();
                 selectionStartY = e.getY();
                 selectionEndX = e.getX();
                 selectionEndY = e.getY();
-}
+        }
 
             if (toolSelector.getValue().equals("Color Grabber")) {
 
@@ -396,7 +445,7 @@ WritableImage copiedImage = null;
         });
 
         /**
-         * this draws a continuous line while the user drags the mouse
+         * Draws a continuous line while the user drags the mouse
          * when the Pencil tool is selected.
          */
         canvas.setOnMouseDragged(e -> {
@@ -424,8 +473,22 @@ WritableImage copiedImage = null;
         selectionEndY
     );
 }
-            
-            
+    if (toolSelector.getValue().equals("Eraser")) {
+
+    if (!pencilUndoSaved) {
+        undoRedoManager.saveUndoState(canvas);
+        pencilUndoSaved = true;
+    }
+
+    drawingManager.erase(
+        e.getX(),
+        e.getY(),
+        lineWidth.getValue()
+    );
+
+    unsavedChanges = true;
+    }
+                       
             if (toolSelector.getValue().equals("Pencil")) {
 
                 if (!pencilUndoSaved) {
@@ -451,8 +514,10 @@ WritableImage copiedImage = null;
             }
         });
 
+        TabPane tabPane = new TabPane();
+
         /**
-         * this draws the currently selected tool when the mouse is released.
+         * Draws the currently selected tool when the mouse is released.
          * This also applies the selected color, line width, and line style.
          */
         canvas.setOnMouseReleased(e -> {
@@ -467,12 +532,26 @@ WritableImage copiedImage = null;
                 gc.setLineDashes(null);
             }
 
-            String selectedTool = toolSelector.getValue();
-            
-            System.out.println("Mouse released. Selected tool: " + selectedTool);
+        String selectedTool = toolSelector.getValue();
+
+        //System.out.println( ignore these 3 lines
+          //  "Mouse released. Selected tool: " + selectedTool
+        //);
+
+        Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+        File loggedFile = tabFiles.get(selectedTab);
+        String filename = (loggedFile != null)
+                ? loggedFile.getName()
+                : "Untitled";
+
+        userLogger.logAction(
+            filename,
+            "Mouse released. Selected tool: " + selectedTool
+        );
 
             if (!selectedTool.equals("Color Grabber")
                     && !selectedTool.equals("Pencil")
+                    && !selectedTool.equals("Eraser")
                     && !selectedTool.equals("Text")
                     && !selectedTool.equals("Select")) {
 
@@ -625,60 +704,192 @@ WritableImage copiedImage = null;
 
             unsavedChanges = true;
         });
+        
+rotate90Item.setOnAction(e -> {
+    Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
 
-        //tp is now declared before menu handlers that use it.
-        TabPane tabPane = new TabPane();
+    if (selectedTab == null) {
+        return;
+    }
 
-        /**
-         * this clears the current canvas after asking the user
-         * for confirmation.
-         */
-        clearItem.setOnAction(e -> {
+    if (canvas == null) {
+        return;
+    }
 
-            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+    undoRedoManager.saveUndoState(canvas);
 
-            alert.setTitle("Clear Canvas");
-            alert.setHeaderText("Clear Canvas?");
-            alert.setContentText(
-                "Are you sure you want to clear the canvas?"
-            );
+    double oldWidth = canvas.getWidth();
+    double oldHeight = canvas.getHeight();
 
-            Optional<ButtonType> result = alert.showAndWait();
+    int snapshotWidth = (int) Math.ceil(oldWidth);
+    int snapshotHeight = (int) Math.ceil(oldHeight);
 
-            if (result.isPresent() && result.get() == ButtonType.OK) {
+    if (snapshotWidth <= 0 || snapshotHeight <= 0) {
+        return;
+    }
 
-                Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
-                Canvas selectedCanvas = tabCanvases.get(selectedTab);
-                Canvas selectedSelectionOverlay = tabSelectionOverlays.get(selectedTab);
+    SnapshotParameters parameters = new SnapshotParameters();
+    parameters.setFill(Color.TRANSPARENT);
 
-                if (selectedCanvas != null && selectedSelectionOverlay != null) {
-                    GraphicsContext selectedGc = selectedCanvas.getGraphicsContext2D();
+    WritableImage snapshot = new WritableImage(
+        snapshotWidth,
+        snapshotHeight
+    );
 
-                    undoRedoManager.saveUndoState(selectedCanvas);
+    canvas.snapshot(parameters, snapshot);
+    canvas.setWidth(oldHeight);
+    canvas.setHeight(oldWidth);
 
-                    selectedGc.clearRect(
-                        0,
-                        0,
-                        selectedCanvas.getWidth(),
-                        selectedCanvas.getHeight()
-                    );
+    GraphicsContext rotationGC = canvas.getGraphicsContext2D();
+    rotationGC.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
-                    selectedSelectionOverlay.getGraphicsContext2D().clearRect(
-                        0,
-                        0,
-                        selectedSelectionOverlay.getWidth(),
-                        selectedSelectionOverlay.getHeight()
-                    );
+    //ROTATE THIS GOOB 90 DEGREES
+    rotationGC.save();
+    rotationGC.translate(oldHeight, 0);
+    rotationGC.rotate(90);
+    rotationGC.drawImage(snapshot, 0, 0);
+    rotationGC.restore();
 
-                    copiedImage = null;
-                    pasteMode = false;
+    Canvas overlay = tabSelectionOverlays.get(selectedTab);
 
-                    unsavedChanges = true;
-                }
-            }
+    if (overlay != null) {
+        overlay.setWidth(oldHeight);
+        overlay.setHeight(oldWidth);
+
+        GraphicsContext overlayGC = overlay.getGraphicsContext2D();
+        overlayGC.clearRect(
+            0, 0, overlay.getWidth(), overlay.getHeight()
+        );
+    }
+
+    System.out.println("Rotated canvas 90 degrees clockwise.");
+    
+    unsavedChanges = true;
+});
+
+rotate180Item.setOnAction(e -> {
+    Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+
+    if (selectedTab == null) {
+        return;
+    }
+
+    if (canvas == null) {
+        return;
+    }
+
+    undoRedoManager.saveUndoState(canvas);
+
+    double width = canvas.getWidth();
+    double height = canvas.getHeight();
+
+    int snapshotWidth = (int) Math.ceil(width);
+    int snapshotHeight = (int) Math.ceil(height);
+
+    if (snapshotWidth <= 0 || snapshotHeight <= 0) {
+        return;
+    }
+
+    SnapshotParameters parameters = new SnapshotParameters();
+    parameters.setFill(Color.TRANSPARENT);
+
+    WritableImage snapshot = new WritableImage(
+        snapshotWidth,
+        snapshotHeight
+    );
+
+    canvas.snapshot(parameters, snapshot);
+    GraphicsContext rotation180GC = canvas.getGraphicsContext2D();
+    rotation180GC.clearRect(0, 0, width, height);
+
+    //ROTATE THAT SHI
+    rotation180GC.save();
+    rotation180GC.translate(width, height);
+    rotation180GC.rotate(180);
+    rotation180GC.drawImage(snapshot, 0, 0);
+    rotation180GC.restore();
+
+    Canvas overlay = tabSelectionOverlays.get(selectedTab);
+
+    if (overlay != null) {
+        GraphicsContext overlayGC = overlay.getGraphicsContext2D();
+        overlayGC.clearRect(
+            0, 0, overlay.getWidth(), overlay.getHeight()
+        );
+    }
+
+    System.out.println("Rotated canvas 180 degrees.");
+    
+    unsavedChanges = true;
+});
+
+    rotate270Item.setOnAction(e -> {
+        Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+
+    if (selectedTab == null) {
+        return;
+    }
+
+    if (canvas == null) {
+        return;
+    }
+
+    undoRedoManager.saveUndoState(canvas);
+
+    double oldWidth = canvas.getWidth();
+    double oldHeight = canvas.getHeight();
+
+    int snapshotWidth = (int) Math.ceil(oldWidth);
+    int snapshotHeight = (int) Math.ceil(oldHeight);
+
+    if (snapshotWidth <= 0 || snapshotHeight <= 0) {
+        return;
+    }
+
+    SnapshotParameters parameters = new SnapshotParameters();
+    parameters.setFill(Color.TRANSPARENT);
+
+    WritableImage snapshot = new WritableImage(
+        snapshotWidth,
+        snapshotHeight
+    );
+
+    canvas.snapshot(parameters, snapshot);
+    canvas.setWidth(oldHeight);
+    canvas.setHeight(oldWidth);
+
+    GraphicsContext rotation270GC = canvas.getGraphicsContext2D();
+    rotation270GC.clearRect(
+        0, 0, canvas.getWidth(), canvas.getHeight()
+    );
+
+    rotation270GC.save();
+    rotation270GC.translate(0, oldWidth);
+    rotation270GC.rotate(270);
+    rotation270GC.drawImage(snapshot, 0, 0);
+    rotation270GC.restore();
+
+    Canvas overlay = tabSelectionOverlays.get(selectedTab);
+
+    if (overlay != null) {
+        overlay.setWidth(oldHeight);
+        overlay.setHeight(oldWidth);
+
+        GraphicsContext overlayGC = overlay.getGraphicsContext2D();
+        overlayGC.clearRect(
+            0, 0, overlay.getWidth(), overlay.getHeight()
+        );
+    }
+
+    System.out.println("Rotated canvas 270 degrees clockwise.");   
+    unsavedChanges = true;
+});   
+        selectionItem.setOnAction(e -> {
+            toolSelector.setValue("Select");
         });
-        /**
- * this undoes the most recent canvas change.
+
+ /**
+ * Undoes the most recent canvas change.
  */
     undoItem.setOnAction(e -> {
 
@@ -695,7 +906,7 @@ WritableImage copiedImage = null;
 );
 
 /**
- * this redoes the most recently undone canvas change.
+ * Redoes the most recently undone canvas change.
  */
 redoItem.setOnAction(e -> {
 
@@ -735,7 +946,7 @@ pasteItem.setOnAction(e -> {
     );
 
         /**
-         * opens an image selected by the user and resizes the canvas
+         * Opens an image selected by the user and resizes the canvas
          * to match the dimensions of the opened image.
          */
         openItem.setOnAction(e -> {
@@ -773,9 +984,6 @@ pasteItem.setOnAction(e -> {
                             selectedCanvas.getHeight()
                         );
                         selectedGc.drawImage(image, 0, 0);
-
-                        // new image starts a redo/undo history
-                        // for this tab.
                         undoRedoManager.clearHistory(selectedCanvas);
 
                         tabFiles.put(selectedTab, selectedFile);
@@ -787,7 +995,7 @@ pasteItem.setOnAction(e -> {
         });
 
         /**
-         * saves the current drawing.
+         * Saves the current drawing.
          * If this tab has not been saved yet, asks for a destination.
          * Otherwise, saves over the file associated with this tab.
          */
@@ -807,10 +1015,7 @@ pasteItem.setOnAction(e -> {
                 return;
             }
 
-            //each tab keeps track of its own
             File selectedFile = tabFiles.get(selectedTab);
-
-            // A new/untitled drawing has no destination yet.
             if (selectedFile == null) {
 
                 FileChooser fileChooser =
@@ -819,7 +1024,6 @@ pasteItem.setOnAction(e -> {
                 selectedFile =
                     fileChooser.showSaveDialog(stage);
 
-                // Do nothing if the user cancels the dialog.
                 if (selectedFile == null) {
                     return;
                 }
@@ -831,7 +1035,6 @@ pasteItem.setOnAction(e -> {
 
                 selectedFile = fileManager.ensureFileExtension(selectedFile, format);
 
-                //added a warning if you decide to change format u will get a warning
                 if (!confirmAlternativeFormat(format)) {
                     return;
                 }
@@ -887,23 +1090,23 @@ pasteItem.setOnAction(e -> {
         });
 
         /**
-         * this saves the current drawing as a new image file using the
+         * Saves the current drawing as a new image file using the
          * format selected by the user.
          */
-saveAsItem.setOnAction(e -> {
+        saveAsItem.setOnAction(e -> {
 
-    Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+            Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
 
-    StackPane selectedDrawingArea =
-        tabDrawingAreas.get(selectedTab);
+                StackPane selectedDrawingArea =
+                tabDrawingAreas.get(selectedTab);
 
-    if (selectedTab != null && selectedDrawingArea != null) {
+        if (selectedTab != null && selectedDrawingArea != null) {
 
-        FileChooser fileChooser =
-            fileManager.createSaveFileChooser();
+            FileChooser fileChooser =
+                fileManager.createSaveFileChooser();
 
-        File selectedFile =
-            fileChooser.showSaveDialog(stage);
+            File selectedFile =
+                fileChooser.showSaveDialog(stage);
 
         if (selectedFile != null) {
 
@@ -914,7 +1117,6 @@ saveAsItem.setOnAction(e -> {
 
             selectedFile = fileManager.ensureFileExtension(selectedFile, format);
 
-            // the warning.
             if (!confirmAlternativeFormat(format)) {
                 return;
             }
@@ -951,11 +1153,8 @@ saveAsItem.setOnAction(e -> {
         }
     }
 });
-
-   
-        // program! LETS LEAVE!
         /**
-         * this closes the application window.
+         * Closes the application window. (aka leave)
          */
         exitItem.setOnAction(e -> {
             stage.close();
@@ -971,13 +1170,13 @@ saveAsItem.setOnAction(e -> {
             clearItem,
             copyItem,
             pasteItem,
+            selectionItem,
             exitItem
         );
 
         /**
-         * this creates the tabbed workspace used to hold multiple images.
+         * Creates the tabbed workspace used to hold multiple images.
          */
-        //
         Tab firstTab = new Tab("Untitled");
 
         firstTab.setContent(scrollPane);
@@ -990,9 +1189,13 @@ saveAsItem.setOnAction(e -> {
         tabDrawingAreas.put(firstTab, drawingArea);
 
         /**
-         * this creates a button for adding additional image tabs.
+         * Creates a button for adding additional image tabs.
          */
         Button addTabButton = new Button("+");
+        
+        addTabButton.setTooltip(
+            new Tooltip("Create a new image tab")
+        );
 
         addTabButton.setOnAction(e -> {
 
@@ -1037,8 +1240,8 @@ saveAsItem.setOnAction(e -> {
         Label colorLabel = new Label("Color: #000000");
 
         /**
-         * this updates the color label whenever the selected color changes.
-         * color is displayed as a hexadecimal RGB value.
+         * Updates the color label whenever the selected color changes.
+         * The color is displayed as a hexadecimal RGB value.
          */
         colorPicker.valueProperty().addListener(
             (obs, oldColor, newColor) -> {
@@ -1053,13 +1256,69 @@ saveAsItem.setOnAction(e -> {
                 colorLabel.setText("Color: " + hex);
             }
         );
+        
+    CheckBox autosaveNotifications = new CheckBox(
+        "Autosave Notifications"
+    );
 
+    autosaveNotifications.setSelected(true);
 
+    autosaveNotifications.setTooltip(
+        new Tooltip("Enable or disable desktop autosave notifications")
+    );
+
+    autosaveNotifications.setOnAction(event ->
+        autoSave.setNotificationsEnabled(
+            autosaveNotifications.isSelected()
+        )
+    );
+  
         // layout stuff
         HBox toolbar = new HBox(10);
         toolbar.setPadding(new Insets(8, 12, 8, 12));
         toolbar.setAlignment(Pos.CENTER_LEFT);
         toolbar.getStyleClass().add("toolbar");
+        
+        //pencil icon button
+        Image pencilImage = new Image(
+            getClass().getResourceAsStream("/Icons/pencil.jpg")
+        );
+        ImageView pencilIcon = new ImageView(pencilImage);
+        pencilIcon.setFitWidth(32);
+        pencilIcon.setFitHeight(32);
+        pencilIcon.setPreserveRatio(true);
+
+        Button pencilButton = new Button();
+        pencilButton.setGraphic(pencilIcon);
+        pencilButton.setPrefSize(44, 44);
+        pencilButton.setTooltip(new Tooltip("Pencil"));
+        pencilButton.setOnAction(e -> toolSelector.setValue("Pencil"));
+
+        //line icon button
+        javafx.scene.shape.Line lineIcon = new javafx.scene.shape.Line(0, 0, 28, 28);
+        lineIcon.setStroke(Color.BLACK);
+        lineIcon.setStrokeWidth(2);
+        
+        // Eraser toolbar button
+        javafx.scene.shape.Rectangle eraserIcon =
+        new javafx.scene.shape.Rectangle(26, 16);
+
+        eraserIcon.setFill(Color.LIGHTGRAY);
+        eraserIcon.setStroke(Color.DARKGRAY);
+        eraserIcon.setArcWidth(5);
+        eraserIcon.setArcHeight(5);
+
+        Button eraserButton = new Button();
+        eraserButton.setGraphic(eraserIcon);
+        eraserButton.setPrefSize(44, 44);
+        eraserButton.setTooltip(new Tooltip("Eraser"));
+        eraserButton.setOnAction(e -> toolSelector.setValue("Eraser"));
+
+        Button lineButton = new Button();
+        lineButton.setGraphic(lineIcon);
+        lineButton.setPrefSize(44, 44);
+        lineButton.setTooltip(new Tooltip("Line"));
+        lineButton.setOnAction(e -> toolSelector.setValue("Line"));
 
         Label toolLabel = new Label("Tool:");
         Label colorControlLabel = new Label("Color:");
@@ -1067,8 +1326,11 @@ saveAsItem.setOnAction(e -> {
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
-
+        
         toolbar.getChildren().addAll(
+            pencilButton,
+            lineButton,
+            eraserButton,
             toolLabel,
             toolSelector,
             colorControlLabel,
@@ -1078,13 +1340,12 @@ saveAsItem.setOnAction(e -> {
             lineStyleSelector,
             lineWidthLabel,
             lineWidth,
+            autosaveNotifications,
             spacer,
             addTabButton
         );
 
-        //made it where the menu stays ontop, drawing is below this
         VBox topArea = new VBox(menuBar, toolbar);
-
         root.setTop(topArea);
         root.setCenter(tabPane);
 
@@ -1108,11 +1369,11 @@ saveAsItem.setOnAction(e -> {
         System.err.println("Could not start web server: " + e.getMessage());
     }
 
-        //autosave stuffs this keeps backups
+        //starts saving png backups 
         autoSave = new AutoSave(tabDrawingAreas, fileManager);
         autoSave.start();
     }
-
+    
     private void drawSelection(
         GraphicsContext gc,
         double startX,
@@ -1177,7 +1438,7 @@ saveAsItem.setOnAction(e -> {
 }
 
 /**
- * this shows a warning when saving in a format other than PNG.
+ * Shows a warning when saving in a format other than PNG.
  * JPG can reduce image quality and does not preserve transparency;
  * BMP may also fail to preserve transparency. PNG remains the default.
  *
@@ -1191,12 +1452,12 @@ private boolean confirmAlternativeFormat(String format) {
 
     Alert warning = new Alert(Alert.AlertType.CONFIRMATION);
     warning.setTitle("Alternative Format Warning");
-    warning.setHeaderText("Some image information may be lost");
+    warning.setHeaderText("You may lose some info if you do");
     warning.setContentText(
         "You are saving as " + format.toUpperCase() + ".\n\n"
         + "JPG may reduce image quality and does not support transparency. "
         + "Other formats may not preserve every image feature.\n\n"
-        + "Do you want to continue saving?"
+        + "Are you sure? :omni-man:"
     );
     warning.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
 
@@ -1205,7 +1466,7 @@ private boolean confirmAlternativeFormat(String format) {
 }
 
 /**
- * main entry point for the Joes' Pain(t) application.
+ * Main entry point for the Joes' Pain(t) application.
  *
  * @param args command-line arguments passed to the application
  */
@@ -1213,7 +1474,7 @@ public static void main(String[] args) {
     launch(args);
 }
         /**
-         * this gives an additional ImageTab the same drawing behavior as
+         * Gives an additional ImageTab the same drawing behavior as
          * the original canvas. This keeps the tab requirement usable
          * without changing the existing drawing architecture.
          */
@@ -1262,6 +1523,21 @@ public static void main(String[] args) {
                     );
                     colorPicker.setValue(grabbedColor);
                 }
+                if (toolSelector.getValue().equals("Eraser")) {
+
+                if (!pencilUndoSaved) {
+                    undoRedoManager.saveUndoState(canvas);
+                    pencilUndoSaved = true;
+            }
+
+                drawingManager.erase(
+                    e.getX(),
+                    e.getY(),
+                lineWidth.getValue()
+                );
+
+                unsavedChanges = true;
+            }
 
                 if (toolSelector.getValue().equals("Text")) {
                     TextInputDialog textDialog = new TextInputDialog();
@@ -1325,6 +1601,7 @@ public static void main(String[] args) {
 
                 if (!selectedTool.equals("Color Grabber")
                         && !selectedTool.equals("Pencil")
+                        && !selectedTool.equals("Eraser")
                         && !selectedTool.equals("Text")
                         && !selectedTool.equals("Select")) {
                     undoRedoManager.saveUndoState(canvas);
