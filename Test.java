@@ -1,13 +1,12 @@
 package com.mycompany.mavenproject1;
 
+//imports stuff 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.File;
 
-
-class ShapeManagerTest { //kept trying to call it shapemanagertest, wouldnt let me so it now works like this, leaving it alone lol
-  // where my unit tests are, did for polygon sides, star points, drawing image format, and circle diameter
-  
+class ShapeManagerTest {
+    
     private final FileManager fileManager = new FileManager();
 
     @Test
@@ -28,6 +27,7 @@ class ShapeManagerTest { //kept trying to call it shapemanagertest, wouldnt let 
 
         assertEquals("png", fileManager.getFormatFromFile(file));
     }
+
 
     @Test
     void circleDiameterIsTwiceItsRadius() {
