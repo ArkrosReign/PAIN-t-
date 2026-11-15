@@ -1,4 +1,3 @@
-
 package com.mycompany.mavenproject1;
 
 import java.io.File;
@@ -13,15 +12,18 @@ import javafx.scene.layout.StackPane;
 import javafx.util.Duration;
 
 /**
- * This saves backup copies of drawing tabs.
+ * Saves backup copies of drawing tabs and optionally
+ * displays desktop notifications when autosaving completes.
  */
 public class AutoSave {
 
-    private static final int AUTOSAVE_INTERVAL_SECONDS = 60;
+    private static final int AUTOSAVE_INTERVAL_SECONDS = 30;
 
     private final Map<Tab, StackPane> drawingAreas;
     private final FileManager fileManager;
     private final Timeline autosaveTimer;
+
+    private boolean notificationsEnabled = true;
 
     private final File autosaveDirectory = new File(
         System.getProperty("user.home"),
@@ -46,21 +48,29 @@ public class AutoSave {
     }
 
     /**
-     * This starts the repeating autosave timer.
+     * Starts the repeating autosave timer.
      */
     public void start() {
         autosaveTimer.play();
     }
 
     /**
-     * STOP!
+     * Stops the autosave timer.
      */
     public void stop() {
         autosaveTimer.stop();
     }
 
     /**
-     * This saves a backup PNG for every tab currently open.
+     * Enables or disables desktop autosave notifications.
+     * This does not disable autosaving.
+     */
+    public void setNotificationsEnabled(boolean enabled) {
+        notificationsEnabled = enabled;
+    }
+
+    /**
+     * Saves a backup PNG for every tab currently open.
      */
     public void autosaveAllTabs() {
 
@@ -75,6 +85,7 @@ public class AutoSave {
         }
 
         int tabNumber = 1;
+        int savedCount = 0;
 
         for (Map.Entry<Tab, StackPane> entry
                 : drawingAreas.entrySet()) {
@@ -100,9 +111,92 @@ public class AutoSave {
                 System.out.println(
                     "Autosaved: " + backupFile.getAbsolutePath()
                 );
+                savedCount++;
             }
 
             tabNumber++;
         }
+
+        if (notificationsEnabled && savedCount > 0) {
+            showDesktopNotification(
+                "Autosave complete",
+                savedCount + (savedCount == 1
+                    ? " drawing backup saved."
+                    : " drawing backups saved.")
+            );
+        }
+    }
+
+    /**
+     * Showcases a desktop notification through the operating system.
+     */
+    private void showDesktopNotification(String title, String message) {
+
+        try {
+            if (!java.awt.SystemTray.isSupported()) {
+                System.out.println(
+                    "Desktop notifications are not supported on this system."
+                );
+                return;
+            }
+
+            java.awt.SystemTray tray =
+                java.awt.SystemTray.getSystemTray();
+
+            java.awt.TrayIcon trayIcon = new java.awt.TrayIcon(
+                createNotificationImage(),
+                "JoesPaint"
+            );
+
+            trayIcon.setImageAutoSize(true);
+            tray.add(trayIcon);
+
+            trayIcon.displayMessage(
+                title,
+                message,
+                java.awt.TrayIcon.MessageType.INFO
+            );
+
+            javax.swing.Timer removalTimer = new javax.swing.Timer(
+                5000,
+                event -> tray.remove(trayIcon)
+            );
+
+            removalTimer.setRepeats(false);
+            removalTimer.start();
+
+        } catch (Exception ex) {
+            System.err.println(
+                "Could not display autosave notification: "
+                + ex.getMessage()
+            );
+        }
+    }
+
+    /**
+     * Creates a icon for the operating system notification.
+     */
+    private java.awt.Image createNotificationImage() {
+
+        java.awt.image.BufferedImage image =
+            new java.awt.image.BufferedImage(
+                16,
+                16,
+                java.awt.image.BufferedImage.TYPE_INT_ARGB
+            );
+
+        java.awt.Graphics2D graphics = image.createGraphics();
+
+        try {
+            graphics.setColor(new java.awt.Color(45, 120, 210));
+            graphics.fillRoundRect(1, 1, 14, 14, 4, 4);
+
+            graphics.setColor(java.awt.Color.WHITE);
+            graphics.drawString("J", 4, 12);
+        } finally {
+            graphics.dispose();
+        }
+
+        return image;
     }
 }
